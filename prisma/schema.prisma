@@ -119,6 +119,7 @@ enum MainFoodGroup {
 enum RecipeMealCategory {
   breakfast
   morning_snack
+  lunch
   first_course
   second_course
   single_dish
