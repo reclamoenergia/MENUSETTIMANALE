@@ -3,6 +3,55 @@ generator client {
 }
 
 datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionPlan { free premium_monthly premium_annual }
+enum SubscriptionStatus { active inactive trialing canceled }
+enum Sex { male female }
+enum ActivityLevel { sedentary lightly_active active very_active }
+enum Goal { maintenance light_weight_loss muscle_gain sport_energy }
+enum MealType { breakfast morning_snack lunch afternoon_snack dinner evening_snack }
+enum DayOfWeek { monday tuesday wednesday thursday friday saturday sunday }
+enum BreakfastSnackMode { simple_suggestions recipes }
+enum MealStructure { single_dish_plus_side first_second_plus_side }
+enum RecipeTag { mediterranean vegetarian protein_rich budget_friendly family_friendly quick pugliese campana }
+enum IngredientCategory { pasta_rice_cereals meat fish eggs dairy legumes vegetables fruit bread_bakery pantry frozen condiments other }
+enum StorageType { pantry fridge freezer }
+enum MainFoodGroup { red_meat white_meat fish legumes eggs cheese vegetarian cereals vegetables fruit snack }
+enum RecipeMealCategory { breakfast morning_snack first_course second_course single_dish side_dish afternoon_snack dinner evening_snack }
+enum Unit { g ml piece tbsp tsp }
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String?
+  subscriptionPlan SubscriptionPlan @default(free)
+  subscriptionStatus SubscriptionStatus @default(inactive)
+  households Household[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Household { id String @id @default(cuid()) userId String name String user User @relation(fields:[userId], references:[id]) persons Person[] weeklySettings WeeklySettings[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt }
+model Person { id String @id @default(cuid()) householdId String name String age Int sex Sex heightCm Float weightKg Float activityLevel ActivityLevel goal Goal excludedFoodIds String[] preferredFoodIds String[] defaultManagedMeals MealType[] household Household @relation(fields:[householdId], references:[id]) createdAt DateTime @default(now()) updatedAt DateTime @updatedAt }
+model WeeklySettings {
+  id String @id @default(cuid())
+  householdId String
+  weekStartDate DateTime
+  breakfastSnackMode BreakfastSnackMode
+  allowFrozenFood Boolean
+  lunchStructure MealStructure
+  dinnerStructure MealStructure
+  weeklyFoodGroupRules Json
+  daySettings Json
+  household Household @relation(fields:[householdId], references:[id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Ingredient { id String @id name String @unique category IngredientCategory storageType StorageType shelfLifeDays Int recommendedPurchaseLeadDays Int isSeasonal Boolean seasonWeeks Int[] hasFrozenOption Boolean recipeIngredients RecipeIngredient[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt }
+model Recipe { id String @id @default(cuid()) name String @unique mealCategories RecipeMealCategory[] recipeTags RecipeTag[] regionalTags String[] mainFoodGroup MainFoodGroup prepTimeMinutes Int cookTimeMinutes Int canBePreparedDayBefore Boolean suitableForChildren Boolean isSideDish Boolean ingredients RecipeIngredient[] nutritionPerStandardPortion Json steps String[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt }
+model RecipeIngredient { recipeId String ingredientId String quantityPerStandardPortion Float unit Unit recipe Recipe @relation(fields:[recipeId], references:[id], onDelete: Cascade) ingredient Ingredient @relation(fields:[ingredientId], references:[id]) @@id([recipeId, ingredientId]) }
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
