@@ -1,4 +1,4 @@
-import { ActivityLevel, Goal, MealType, Person, Prisma, RecipeMealCategory, Sex } from "@prisma/client";
+import { ActivityLevel, Goal, MainFoodGroup, MealType, Person, Prisma, RecipeMealCategory, Sex } from "@prisma/client";
 
 const activityFactors: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -39,7 +39,17 @@ export function estimateDailyCalories(person: Person): number {
     5 * person.age +
     (person.sex === Sex.male ? 5 : -161);
 
-  return baseBmr * activityFactors[person.activityLevel] * goalAdjustments[person.goal];
+  let adjustedBmr = baseBmr;
+
+  // Heuristic adjustment for children to keep results realistic without a complex pediatric model.
+  if (person.age < 18) {
+    adjustedBmr *= 0.82;
+  }
+
+  const estimated = adjustedBmr * activityFactors[person.activityLevel] * goalAdjustments[person.goal];
+  const minimum = person.age < 12 ? 900 : person.age < 18 ? 1200 : 1400;
+
+  return Math.max(minimum, estimated);
 }
 
 export function estimateMacroTargets(person: Person) {
@@ -90,6 +100,44 @@ function filterRecipes(
 
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+const rotationFoodGroups: MainFoodGroup[] = ["legumes", "fish", "eggs", "cheese", "vegetarian", "white_meat", "cereals"];
+
+function getMainIngredientId(recipe: RecipeWithIngredients): string | null {
+  return recipe.ingredients[0]?.ingredientId ?? null;
+}
+
+function chooseRecipeWithDiversity(
+  candidates: RecipeWithIngredients[],
+  options: {
+    usedRecipeIds: Set<string>;
+    recentMainIngredientIds: string[];
+    preferredGroup?: MainFoodGroup;
+    recentFoodGroups: MainFoodGroup[];
+  }
+): RecipeWithIngredients | undefined {
+  const scored = candidates.map((recipe) => {
+    let score = 0;
+    const mainIngredientId = getMainIngredientId(recipe);
+
+    if (options.usedRecipeIds.has(recipe.id)) score -= 50;
+    if (options.preferredGroup && recipe.mainFoodGroup === options.preferredGroup) score += 20;
+    if (options.recentFoodGroups.includes(recipe.mainFoodGroup)) score -= 12;
+    if (mainIngredientId && options.recentMainIngredientIds.includes(mainIngredientId)) score -= 30;
+    if (recipe.mainFoodGroup === "cereals") score -= 8;
+
+    return { recipe, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.recipe;
+}
+
+function getPortionLabel(multiplier: number): "Small" | "Medium" | "Large" {
+  if (multiplier < 0.9) return "Small";
+  if (multiplier > 1.2) return "Large";
+  return "Medium";
+}
+
 export function generateWeeklyMenu(params: {
   persons: Person[];
   recipes: RecipeWithIngredients[];
@@ -97,6 +145,18 @@ export function generateWeeklyMenu(params: {
   allowFrozenFood: boolean;
 }) {
   const excludedFoodIds = [...new Set(params.persons.flatMap((p) => p.excludedFoodIds))];
+  const usedRecipeIds = new Set<string>();
+  const recentMainIngredientIds: string[] = [];
+  const recentFoodGroups: MainFoodGroup[] = [];
+
+  const sideDishes = filterRecipes(params.recipes, {
+    mealCategory: "side_dish",
+    excludedFoodIds,
+    maxPrepMinutes: 30,
+    mustBePreppableDayBefore: false,
+    allowFrozenFood: params.allowFrozenFood,
+    weekNumber: params.weekNumber
+  });
 
   const meals = dayNames.map((day, dayIndex) => {
     const lunchRecipes = filterRecipes(params.recipes, {
@@ -117,19 +177,42 @@ export function generateWeeklyMenu(params: {
       weekNumber: params.weekNumber
     });
 
-    const sideDishes = filterRecipes(params.recipes, {
-      mealCategory: "side_dish",
-      excludedFoodIds,
-      maxPrepMinutes: 30,
-      mustBePreppableDayBefore: false,
-      allowFrozenFood: params.allowFrozenFood,
-      weekNumber: params.weekNumber
+    const preferredLunchGroup = rotationFoodGroups[(dayIndex * 2) % rotationFoodGroups.length];
+    const preferredDinnerGroup = rotationFoodGroups[(dayIndex * 2 + 1) % rotationFoodGroups.length];
+
+    const lunch = chooseRecipeWithDiversity(lunchRecipes, {
+      usedRecipeIds,
+      recentMainIngredientIds,
+      preferredGroup: preferredLunchGroup,
+      recentFoodGroups
     });
 
-    const lunch = lunchRecipes[dayIndex % Math.max(lunchRecipes.length, 1)];
-    const dinner = dinnerRecipes[(dayIndex + 2) % Math.max(dinnerRecipes.length, 1)];
-    const lunchSide = sideDishes[dayIndex % Math.max(sideDishes.length, 1)];
-    const dinnerSide = sideDishes[(dayIndex + 3) % Math.max(sideDishes.length, 1)];
+    if (lunch) {
+      usedRecipeIds.add(lunch.id);
+      recentFoodGroups.push(lunch.mainFoodGroup);
+      const ing = getMainIngredientId(lunch);
+      if (ing) recentMainIngredientIds.push(ing);
+    }
+
+    const dinner = chooseRecipeWithDiversity(dinnerRecipes, {
+      usedRecipeIds,
+      recentMainIngredientIds,
+      preferredGroup: preferredDinnerGroup,
+      recentFoodGroups
+    });
+
+    if (dinner) {
+      usedRecipeIds.add(dinner.id);
+      recentFoodGroups.push(dinner.mainFoodGroup);
+      const ing = getMainIngredientId(dinner);
+      if (ing) recentMainIngredientIds.push(ing);
+    }
+
+    while (recentFoodGroups.length > 4) recentFoodGroups.shift();
+    while (recentMainIngredientIds.length > 3) recentMainIngredientIds.shift();
+
+    const lunchSide = sideDishes[(dayIndex * 2) % Math.max(sideDishes.length, 1)];
+    const dinnerSide = sideDishes[(dayIndex * 2 + 1) % Math.max(sideDishes.length, 1)];
 
     return {
       day,
@@ -165,7 +248,8 @@ function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[],
         personId: person.id,
         personName: person.name,
         multiplier: Number(multiplier.toFixed(2)),
-        estimatedCalories: Math.round(mealTargetKcal),
+        portionLabel: getPortionLabel(multiplier),
+        estimatedCalories: Math.round(standardMealKcal * multiplier),
         macroTargets: estimateMacroTargets(person)
       };
     })
