@@ -30,6 +30,21 @@ type GeneratedMeal = {
   }[];
 };
 
+const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
+  lunch: "Lunch",
+  dinner: "Dinner"
+};
+
+const getPortionLabel = (multiplier: number): string => {
+  if (multiplier < 0.85) {
+    return "Small portion";
+  }
+  if (multiplier <= 1.15) {
+    return "Medium portion";
+  }
+  return "Large portion";
+};
+
 type SavedOnboarding = {
   household: {
     id: string;
@@ -184,18 +199,26 @@ export function OnboardingForm() {
             {generatedMenu.map((day) => (
               <div className="rounded border border-emerald-200 bg-white p-3" key={day.day}>
                 <h3 className="font-semibold text-emerald-900">{day.day}</h3>
-                {day.meals.map((meal) => (
-                  <div className="mt-2 text-sm" key={meal.mealType}>
-                    <p className="font-medium">{meal.mealType}: {meal.recipes.join(" + ")}</p>
-                    <ul>
-                      {meal.portions.map((portion) => (
-                        <li key={`${meal.mealType}-${portion.personId}`}>
-                          {portion.personName}: x{portion.multiplier} ({portion.estimatedCalories} kcal target)
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {day.meals.map((meal) => (
+                    <section className="rounded-md border border-emerald-100 bg-emerald-50/40 p-3 text-sm" key={meal.mealType}>
+                      <h4 className="font-semibold text-emerald-900">{mealTypeLabel[meal.mealType]}</h4>
+                      <p className="mt-1 text-emerald-900">{meal.recipes.join(" + ")}</p>
+                      <ul className="mt-3 space-y-2">
+                        {meal.portions.map((portion) => (
+                          <li
+                            className="rounded-md border border-emerald-200 bg-white px-3 py-2"
+                            key={`${meal.mealType}-${portion.personId}`}
+                          >
+                            <p className="font-medium text-emerald-900">{portion.personName}</p>
+                            <p className="text-emerald-800">{getPortionLabel(portion.multiplier)}</p>
+                            <p className="text-xs text-emerald-700/80">{portion.estimatedCalories} kcal estimate</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
