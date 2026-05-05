@@ -4,10 +4,10 @@ import { FormEvent, useState } from "react";
 
 type PersonInput = {
   name: string;
-  age: number;
+  age: number | undefined;
   sex: "male" | "female";
-  heightCm: number;
-  weightKg: number;
+  heightCm: number | undefined;
+  weightKg: number | undefined;
 };
 
 const defaultPerson: PersonInput = {
@@ -27,6 +27,14 @@ export function OnboardingForm() {
     setPersons((current) =>
       current.map((person, personIndex) => (personIndex === index ? { ...person, [field]: value } : person))
     );
+  };
+
+  const parseNumericInput = (value: string): number | undefined => {
+    if (value === "") {
+      return undefined;
+    }
+
+    return Number(value);
   };
 
   const addPerson = () => {
@@ -88,7 +96,7 @@ export function OnboardingForm() {
               <input
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
                 min={0}
-                onChange={(event) => updatePerson(index, "age", Number(event.target.value))}
+                onChange={(event) => updatePerson(index, "age", parseNumericInput(event.target.value))}
                 required
                 type="number"
                 value={person.age}
@@ -112,7 +120,7 @@ export function OnboardingForm() {
               <input
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
                 min={1}
-                onChange={(event) => updatePerson(index, "heightCm", Number(event.target.value))}
+                onChange={(event) => updatePerson(index, "heightCm", parseNumericInput(event.target.value))}
                 required
                 type="number"
                 value={person.heightCm}
@@ -124,7 +132,7 @@ export function OnboardingForm() {
               <input
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
                 min={1}
-                onChange={(event) => updatePerson(index, "weightKg", Number(event.target.value))}
+                onChange={(event) => updatePerson(index, "weightKg", parseNumericInput(event.target.value))}
                 required
                 type="number"
                 value={person.weightKg}
