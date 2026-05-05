@@ -10,6 +10,24 @@ type PersonInput = {
   weightKg: number | undefined;
 };
 
+type SavedPerson = {
+  id: string;
+  name: string;
+  age: number;
+  sex: "male" | "female";
+  heightCm: number;
+  weightKg: number;
+};
+
+type SavedOnboarding = {
+  household: {
+    id: string;
+    userId: string;
+    name: string;
+  };
+  persons: SavedPerson[];
+};
+
 const defaultPerson: PersonInput = {
   name: "",
   age: 30,
@@ -18,10 +36,14 @@ const defaultPerson: PersonInput = {
   weightKg: 60
 };
 
+const DEFAULT_USER_ID = "demo-user";
+
 export function OnboardingForm() {
   const [householdName, setHouseholdName] = useState("");
   const [persons, setPersons] = useState<PersonInput[]>([defaultPerson]);
-  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [savedOnboarding, setSavedOnboarding] = useState<SavedOnboarding | null>(null);
 
   const updatePerson = <K extends keyof PersonInput>(index: number, field: K, value: PersonInput[K]) => {
     setPersons((current) =>
@@ -45,10 +67,85 @@ export function OnboardingForm() {
     setPersons((current) => current.filter((_, personIndex) => personIndex !== index));
   };
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitted(true);
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      const householdResponse = await fetch("/api/households", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: DEFAULT_USER_ID,
+          name: householdName
+        })
+      });
+
+      if (!householdResponse.ok) {
+        throw new Error("Unable to create household");
+      }
+
+      const household = (await householdResponse.json()) as SavedOnboarding["household"];
+
+      const createdPersons: SavedPerson[] = [];
+
+      for (const person of persons) {
+        const personResponse = await fetch("/api/persons", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            householdId: household.id,
+            name: person.name,
+            age: person.age,
+            sex: person.sex,
+            heightCm: person.heightCm,
+            weightKg: person.weightKg,
+            activityLevel: "lightly_active",
+            goal: "maintenance",
+            excludedFoodIds: [],
+            preferredFoodIds: [],
+            defaultManagedMeals: ["breakfast", "lunch", "dinner"]
+          })
+        });
+
+        if (!personResponse.ok) {
+          throw new Error(`Unable to create person: ${person.name}`);
+        }
+
+        createdPersons.push((await personResponse.json()) as SavedPerson);
+      }
+
+      setSavedOnboarding({ household, persons: createdPersons });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error while saving onboarding";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (savedOnboarding) {
+    return (
+      <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50 p-6">
+        <h2 className="text-lg font-semibold text-emerald-900">Onboarding completed</h2>
+        <p className="text-sm text-emerald-800">
+          Household <strong>{savedOnboarding.household.name}</strong> was saved with {savedOnboarding.persons.length} people.
+        </p>
+        <ul className="space-y-2 text-sm text-emerald-900">
+          {savedOnboarding.persons.map((person) => (
+            <li className="rounded-md border border-emerald-200 bg-white px-3 py-2" key={person.id}>
+              {person.name} — {person.age} years, {person.sex}, {person.heightCm} cm, {person.weightKg} kg
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   return (
     <form className="space-y-6 rounded-lg border border-slate-200 bg-white p-6" onSubmit={onSubmit}>
@@ -154,15 +251,11 @@ export function OnboardingForm() {
         ))}
       </div>
 
-      <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white" type="submit">
-        Continue
+      <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-70" disabled={isSubmitting} type="submit">
+        {isSubmitting ? "Saving..." : "Continue"}
       </button>
 
-      {submitted ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Onboarding saved locally. Next step: connect this form to API routes.
-        </p>
-      ) : null}
+      {submitError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{submitError}</p> : null}
     </form>
   );
 }
