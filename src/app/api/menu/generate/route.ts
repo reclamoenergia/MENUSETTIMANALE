@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const schema = z.object({ householdId: z.string().min(1) });
+const schema = z.object({
+  householdId: z.string().min(1),
+  breakfastSnackMode: z.enum(["simple_suggestions", "recipes"]).optional()
+});
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
@@ -21,7 +24,13 @@ export async function POST(request: Request) {
   const oneJan = new Date(now.getFullYear(), 0, 1);
   const weekNumber = Math.ceil((((now.getTime() - oneJan.getTime()) / 86400000) + oneJan.getDay() + 1) / 7);
 
-  const menu = generateWeeklyMenu({ persons, recipes, weekNumber, allowFrozenFood: false });
+  const menu = generateWeeklyMenu({
+    persons,
+    recipes,
+    weekNumber,
+    allowFrozenFood: false,
+    breakfastSnackMode: parsed.data.breakfastSnackMode
+  });
   const groceryList = generateGroceryList({ weeklyMenu: menu.meals, recipes });
 
   return NextResponse.json({ ...menu, groceryList });

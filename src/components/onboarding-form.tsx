@@ -20,7 +20,7 @@ type SavedPerson = {
 };
 
 type GeneratedMeal = {
-  mealType: "lunch" | "dinner";
+  mealType: "breakfast" | "lunch" | "afternoon_snack" | "dinner";
   recipes: string[];
   portions: {
     personId: string;
@@ -31,7 +31,9 @@ type GeneratedMeal = {
 };
 
 const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
+  breakfast: "Breakfast",
   lunch: "Lunch",
+  afternoon_snack: "Afternoon snack",
   dinner: "Dinner"
 };
 
@@ -189,7 +191,7 @@ export function OnboardingForm() {
     const response = await fetch("/api/menu/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ householdId: savedOnboarding.household.id })
+      body: JSON.stringify({ householdId: savedOnboarding.household.id, breakfastSnackMode: "recipes" })
     });
 
     if (!response.ok) {
