@@ -118,6 +118,7 @@ export function generateGroceryList(params: {
 }) {
   const recipesByName = new Map(params.recipes.map((recipe) => [recipe.name, recipe]));
   const aggregated = new Map<string, AggregatedIngredient>();
+  const missingIngredientsForRecipes = new Set<string>();
 
   for (const day of params.weeklyMenu) {
     for (const meal of day.meals) {
@@ -126,6 +127,10 @@ export function generateGroceryList(params: {
       for (const recipeName of meal.recipes) {
         const recipe = recipesByName.get(recipeName);
         if (!recipe) continue;
+        if (recipe.ingredients.length === 0) {
+          missingIngredientsForRecipes.add(recipe.name);
+          continue;
+        }
 
         for (const recipeIngredient of recipe.ingredients) {
           const key = `${recipeIngredient.ingredientId}:${recipeIngredient.unit}`;
@@ -147,6 +152,12 @@ export function generateGroceryList(params: {
         }
       }
     }
+  }
+
+  if (missingIngredientsForRecipes.size > 0) {
+    throw new Error(
+      `Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`
+    );
   }
 
   const items: GroceryListItem[] = Array.from(aggregated.values()).map((item) => {

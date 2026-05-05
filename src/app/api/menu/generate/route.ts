@@ -31,7 +31,13 @@ export async function POST(request: Request) {
     allowFrozenFood: false,
     breakfastSnackMode: parsed.data.breakfastSnackMode
   });
-  const groceryList = generateGroceryList({ weeklyMenu: menu.meals, recipes });
+  let groceryList;
+  try {
+    groceryList = generateGroceryList({ weeklyMenu: menu.meals, recipes });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Grocery list generation error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   return NextResponse.json({ ...menu, groceryList });
 }
