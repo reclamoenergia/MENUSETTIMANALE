@@ -135,12 +135,14 @@ A recipe is excluded if:
 
 After hard filtering, score recipes higher when:
 
+- they match the slot target `mainFoodGroup`;
 - they match preferred recipe tags;
 - they contain preferred foods;
 - they improve weekly variety;
 - they help meet weekly food group minimums;
 - they help reach macro targets;
-- they are suitable for children when children are present.
+- they are suitable for children when children are present;
+- they are not cereals-heavy recipes recently used (to reduce pasta/rice repetition).
 
 ## 7. Meal structure
 
