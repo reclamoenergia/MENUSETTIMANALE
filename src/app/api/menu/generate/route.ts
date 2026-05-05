@@ -1,3 +1,4 @@
+import { generateGroceryList } from "@/lib/grocery-list";
 import { generateWeeklyMenu } from "@/lib/menu-generation";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
@@ -21,5 +22,7 @@ export async function POST(request: Request) {
   const weekNumber = Math.ceil((((now.getTime() - oneJan.getTime()) / 86400000) + oneJan.getDay() + 1) / 7);
 
   const menu = generateWeeklyMenu({ persons, recipes, weekNumber, allowFrozenFood: false });
-  return NextResponse.json(menu);
+  const groceryList = generateGroceryList({ weeklyMenu: menu.meals, recipes });
+
+  return NextResponse.json({ ...menu, groceryList });
 }
