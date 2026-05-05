@@ -65,18 +65,6 @@ type GroceryList = {
       displayQuantity: string;
     }[];
   }[];
-  roundingExamples: {
-    grams: {
-      from780g: string;
-      from1230g: string;
-    };
-    milliliters: {
-      from65ml: string;
-    };
-    pieces: {
-      from2_2pieces: string;
-    };
-  };
 };
 
 type SavedOnboarding = {
@@ -261,23 +249,23 @@ export function OnboardingForm() {
           </div>
         )}
 
+        {!groceryList && (
+          <section className="rounded border border-emerald-200 bg-white p-3">
+            <p className="text-sm text-emerald-900">Generate a weekly menu to see your grocery list</p>
+          </section>
+        )}
+
         {groceryList && (
           <section className="space-y-3 rounded border border-emerald-200 bg-white p-3">
             <h3 className="font-semibold text-emerald-900">Grocery List</h3>
-            <p className="text-xs text-emerald-700">
-              Rounding examples: 780 g → {groceryList.roundingExamples.grams.from780g}, 1230 g → {groceryList.roundingExamples.grams.from1230g},
-              65 ml → {groceryList.roundingExamples.milliliters.from65ml}, 2.2 pieces → {groceryList.roundingExamples.pieces.from2_2pieces}.
-            </p>
             <div className="space-y-3">
               {groceryList.groups.map((group) => (
                 <div className="rounded-md border border-emerald-100 p-3" key={group.category}>
-                  <h4 className="text-sm font-semibold capitalize text-emerald-900">{group.category.replaceAll("_", " ")}</h4>
+                  <h4 className="text-sm font-semibold capitalize text-emerald-900">{group.category.replaceAll("_", " ")}:</h4>
                   <ul className="mt-2 space-y-2">
                     {group.items.map((item) => (
-                      <li className="flex items-center gap-2 text-sm text-emerald-900" key={`${group.category}-${item.ingredientId}`}>
-                        <input className="h-4 w-4" type="checkbox" />
-                        <span className="flex-1">{item.ingredientName}</span>
-                        <span className="text-emerald-700">{item.displayQuantity}</span>
+                      <li className="text-sm text-emerald-900" key={`${group.category}-${item.ingredientId}`}>
+                        - {item.ingredientName} — {item.displayQuantity}
                       </li>
                     ))}
                   </ul>
