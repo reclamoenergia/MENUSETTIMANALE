@@ -195,7 +195,14 @@ Within the same week, avoid:
 - repeated recipes;
 - repeated side dishes on nearby days;
 - excessive repetition of the same main food group;
-- exceeding maximum weekly food group rules.
+- exceeding maximum weekly food group rules;
+- repeating the same main ingredient in consecutive meals.
+
+Simple V1 balancing heuristics:
+
+- rotate preferred main groups across lunch/dinner (legumes, fish, eggs, cheese, vegetarian, white meat, cereals);
+- penalize cereals when recently used, so pasta/rice do not dominate the week;
+- never place more than one cereals-based recipe in a single meal composition.
 
 The algorithm should also try to satisfy minimum weekly frequencies.
 
@@ -217,8 +224,9 @@ For each person present at the meal:
 2. Estimate calories of one standard portion.
 3. Calculate a portion multiplier.
 4. Apply reasonable lower and upper bounds.
-5. Recalculate nutrition.
-6. Add small additions only if needed.
+5. Assign a simple portion label from multiplier (Small, Medium, Large).
+6. Recalculate nutrition coherently with multiplier.
+7. Add small additions only if needed.
 
 Example:
 
@@ -242,6 +250,7 @@ The system handles children through:
 Suggested simple rule:
 
 - if age < 12, prefer recipes marked suitableForChildren;
+- apply a child calorie dampening factor before activity/goal adjustments;
 - avoid very large multipliers;
 - if the required amount is too high, use a small addition instead of increasing the main dish excessively.
 
