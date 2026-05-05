@@ -32,6 +32,21 @@ const mealDistribution: Record<MealType, number> = {
 
 type RecipeWithIngredients = Prisma.RecipeGetPayload<{ include: { ingredients: { include: { ingredient: true } } } }>;
 
+type FoodGroupRule = {
+  min?: number;
+  max?: number;
+};
+
+type WeeklyFoodGroupRules = Partial<Record<MainFoodGroup, FoodGroupRule>>;
+
+type MealFoodGroupSlot = {
+  dayIndex: number;
+  mealType: Extract<MealType, "lunch" | "dinner">;
+  mainFoodGroup: MainFoodGroup;
+};
+
+const lunchDinnerMealTypes: Array<Extract<MealType, "lunch" | "dinner">> = ["lunch", "dinner"];
+
 export function estimateDailyCalories(person: Person): number {
   const baseBmr =
     10 * person.weightKg +
@@ -102,6 +117,70 @@ const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 
 const rotationFoodGroups: MainFoodGroup[] = ["legumes", "fish", "eggs", "cheese", "vegetarian", "white_meat", "cereals"];
 
+export function generateMealFoodGroupPlan(params: {
+  planningDays: number;
+  weeklyFoodGroupRules?: WeeklyFoodGroupRules;
+}) {
+  const planningDays = Math.max(1, Math.floor(params.planningDays));
+  const rules = params.weeklyFoodGroupRules ?? {};
+  const slots: MealFoodGroupSlot[] = [];
+  const assignmentsCount: Partial<Record<MainFoodGroup, number>> = {};
+
+  for (let dayIndex = 0; dayIndex < planningDays; dayIndex += 1) {
+    for (const mealType of lunchDinnerMealTypes) {
+      const group = chooseFoodGroupForSlot({
+        mealType,
+        dayIndex,
+        slotIndex: slots.length,
+        rules,
+        assignmentsCount,
+        previousGroup: slots.at(-1)?.mainFoodGroup
+      });
+
+      assignmentsCount[group] = (assignmentsCount[group] ?? 0) + 1;
+      slots.push({ dayIndex, mealType, mainFoodGroup: group });
+    }
+  }
+
+  return {
+    planningDays,
+    slots
+  };
+}
+
+function chooseFoodGroupForSlot(params: {
+  dayIndex: number;
+  mealType: Extract<MealType, "lunch" | "dinner">;
+  slotIndex: number;
+  rules: WeeklyFoodGroupRules;
+  assignmentsCount: Partial<Record<MainFoodGroup, number>>;
+  previousGroup?: MainFoodGroup;
+}): MainFoodGroup {
+  const scoredGroups = rotationFoodGroups.map((group, index) => {
+    const count = params.assignmentsCount[group] ?? 0;
+    const min = params.rules[group]?.min ?? 0;
+    const max = params.rules[group]?.max;
+    let score = 0;
+
+    if (group === params.previousGroup) score -= 1000;
+    if (max !== undefined && count >= max) score -= 200;
+    if (count < min) score += 80;
+    if (group === "cereals") {
+      score -= 30;
+      if (count > 0) score -= count * 12;
+    }
+
+    const rotationTarget = rotationFoodGroups[(params.slotIndex + index) % rotationFoodGroups.length];
+    if (group === rotationTarget) score += 10;
+    score -= count * 8;
+
+    return { group, score };
+  });
+
+  scoredGroups.sort((a, b) => b.score - a.score);
+  return scoredGroups[0].group;
+}
+
 function getMainIngredientId(recipe: RecipeWithIngredients): string | null {
   return recipe.ingredients[0]?.ingredientId ?? null;
 }
@@ -143,6 +222,8 @@ export function generateWeeklyMenu(params: {
   recipes: RecipeWithIngredients[];
   weekNumber: number;
   allowFrozenFood: boolean;
+  planningDays?: number;
+  weeklyFoodGroupRules?: WeeklyFoodGroupRules;
 }) {
   const excludedFoodIds = [...new Set(params.persons.flatMap((p) => p.excludedFoodIds))];
   const usedRecipeIds = new Set<string>();
@@ -158,7 +239,23 @@ export function generateWeeklyMenu(params: {
     weekNumber: params.weekNumber
   });
 
-  const meals = dayNames.map((day, dayIndex) => {
+  const foodGroupPlan = generateMealFoodGroupPlan({
+    planningDays: params.planningDays ?? dayNames.length,
+    weeklyFoodGroupRules: params.weeklyFoodGroupRules
+  });
+
+  const meals = foodGroupPlan.slots
+    .reduce<Record<number, { lunch?: MainFoodGroup; dinner?: MainFoodGroup }>>((acc, slot) => {
+      const current = acc[slot.dayIndex] ?? {};
+      current[slot.mealType] = slot.mainFoodGroup;
+      acc[slot.dayIndex] = current;
+      return acc;
+    }, {})
+    ;
+
+  const dailyMeals = Object.entries(meals).map(([dayIndexRaw, targetGroups]) => {
+    const dayIndex = Number(dayIndexRaw);
+    const day = dayNames[dayIndex % dayNames.length];
     const lunchRecipes = filterRecipes(params.recipes, {
       mealCategory: "lunch",
       excludedFoodIds,
@@ -177,8 +274,8 @@ export function generateWeeklyMenu(params: {
       weekNumber: params.weekNumber
     });
 
-    const preferredLunchGroup = rotationFoodGroups[(dayIndex * 2) % rotationFoodGroups.length];
-    const preferredDinnerGroup = rotationFoodGroups[(dayIndex * 2 + 1) % rotationFoodGroups.length];
+    const preferredLunchGroup = targetGroups.lunch;
+    const preferredDinnerGroup = targetGroups.dinner;
 
     const lunch = chooseRecipeWithDiversity(lunchRecipes, {
       usedRecipeIds,
@@ -226,7 +323,7 @@ export function generateWeeklyMenu(params: {
   return {
     disclaimer:
       "Indicative estimate only. This menu is not medical advice and does not replace a nutrition professional.",
-    meals
+    meals: dailyMeals
   };
 }
 

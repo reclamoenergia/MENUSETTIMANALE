@@ -214,6 +214,21 @@ legumes min 1 max 4
 red meat min 0 max 1
 ```
 
+
+## 9A. Food-group planning layer (before recipe selection)
+
+Before selecting any recipe, the system builds a lunch/dinner food-group plan for the selected period length.
+
+Rules:
+
+- support variable planning length (not only 7 days);
+- assign one target `mainFoodGroup` to each lunch and dinner slot;
+- use `weeklyFoodGroupRules` min/max as balancing preferences;
+- avoid assigning the same `mainFoodGroup` in consecutive slots;
+- limit cereals-heavy slots (pasta/rice) across the period.
+
+This layer outputs only food-group targets and does not select recipes.
+
 ## 10. Portion calculation
 
 The selected family meal is common.
