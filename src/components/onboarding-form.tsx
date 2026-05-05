@@ -19,6 +19,17 @@ type SavedPerson = {
   weightKg: number;
 };
 
+type GeneratedMeal = {
+  mealType: "lunch" | "dinner";
+  recipes: string[];
+  portions: {
+    personId: string;
+    personName: string;
+    multiplier: number;
+    estimatedCalories: number;
+  }[];
+};
+
 type SavedOnboarding = {
   household: {
     id: string;
@@ -38,11 +49,13 @@ const defaultPerson: PersonInput = {
 
 
 export function OnboardingForm() {
+  const [email, setEmail] = useState("");
   const [householdName, setHouseholdName] = useState("");
   const [persons, setPersons] = useState<PersonInput[]>([defaultPerson]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedOnboarding, setSavedOnboarding] = useState<SavedOnboarding | null>(null);
+  const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
 
   const updatePerson = <K extends keyof PersonInput>(index: number, field: K, value: PersonInput[K]) => {
     setPersons((current) =>
@@ -78,7 +91,8 @@ export function OnboardingForm() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          name: householdName
+          name: householdName,
+          email
         })
       });
 
@@ -119,12 +133,33 @@ export function OnboardingForm() {
       }
 
       setSavedOnboarding({ household, persons: createdPersons });
+      setGeneratedMenu(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error while saving onboarding";
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+
+  const generateMenu = async () => {
+    if (!savedOnboarding) return;
+    setSubmitError(null);
+
+    const response = await fetch("/api/menu/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ householdId: savedOnboarding.household.id })
+    });
+
+    if (!response.ok) {
+      setSubmitError("Unable to generate weekly menu");
+      return;
+    }
+
+    const menu = (await response.json()) as { meals: { day: string; meals: GeneratedMeal[] }[] };
+    setGeneratedMenu(menu.meals);
   };
 
   if (savedOnboarding) {
@@ -141,12 +176,52 @@ export function OnboardingForm() {
             </li>
           ))}
         </ul>
+        <button className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white" onClick={generateMenu} type="button">
+          Generate weekly menu
+        </button>
+        {generatedMenu && (
+          <div className="space-y-3">
+            {generatedMenu.map((day) => (
+              <div className="rounded border border-emerald-200 bg-white p-3" key={day.day}>
+                <h3 className="font-semibold text-emerald-900">{day.day}</h3>
+                {day.meals.map((meal) => (
+                  <div className="mt-2 text-sm" key={meal.mealType}>
+                    <p className="font-medium">{meal.mealType}: {meal.recipes.join(" + ")}</p>
+                    <ul>
+                      {meal.portions.map((portion) => (
+                        <li key={`${meal.mealType}-${portion.personId}`}>
+                          {portion.personName}: x{portion.multiplier} ({portion.estimatedCalories} kcal target)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     );
   }
 
   return (
     <form className="space-y-6 rounded-lg border border-slate-200 bg-white p-6" onSubmit={onSubmit}>
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-700" htmlFor="email">
+          Email
+        </label>
+        <input
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          id="email"
+          name="email"
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          required
+          type="email"
+          value={email}
+        />
+      </div>
+
       <div className="space-y-2">
         <label className="block text-sm font-medium text-slate-700" htmlFor="householdName">
           Household name
