@@ -169,18 +169,6 @@ export function generateGroceryList(params: {
   }));
 
   return {
-    groups: grouped.filter((group) => group.items.length > 0),
-    roundingExamples: {
-      grams: {
-        from780g: formatRoundedQuantity(780, "g").displayQuantity,
-        from1230g: formatRoundedQuantity(1230, "g").displayQuantity
-      },
-      milliliters: {
-        from65ml: formatRoundedQuantity(65, "ml").displayQuantity
-      },
-      pieces: {
-        from2_2pieces: formatRoundedQuantity(2.2, "piece").displayQuantity
-      }
-    }
+    groups: grouped.filter((group) => group.items.length > 0)
   };
 }
