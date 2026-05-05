@@ -144,6 +144,23 @@ After hard filtering, score recipes higher when:
 - they are suitable for children when children are present;
 - they are not cereals-heavy recipes recently used (to reduce pasta/rice repetition).
 
+### Resilience and fallback
+
+Menu generation must remain usable even when ideal matches are not available.
+
+For each lunch/dinner slot:
+
+1. Try recipes that pass hard constraints and match target `mainFoodGroup`.
+2. If none found, retry with the same hard constraints but without requiring target `mainFoodGroup`.
+3. If still none found, retry with relaxed soft constraints and broad scoring (still respecting hard constraints).
+4. If still empty, keep the meal slot and attach a development warning:
+   `No compatible recipe found for this meal`.
+
+The planner must not fail the entire week for a single empty meal slot.
+
+Day-before preparation is a hard constraint only when explicitly enabled by weekly settings.
+Default behavior must not require day-before preparation.
+
 ## 7. Meal structure
 
 For lunch and dinner, the system supports:
