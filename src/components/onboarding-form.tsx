@@ -36,7 +36,6 @@ const defaultPerson: PersonInput = {
   weightKg: 60
 };
 
-const DEFAULT_USER_ID = "demo-user";
 
 export function OnboardingForm() {
   const [householdName, setHouseholdName] = useState("");
@@ -79,7 +78,6 @@ export function OnboardingForm() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          userId: DEFAULT_USER_ID,
           name: householdName
         })
       });
