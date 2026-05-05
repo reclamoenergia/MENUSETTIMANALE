@@ -45,6 +45,40 @@ const getPortionLabel = (multiplier: number): string => {
   return "Large portion";
 };
 
+
+type GroceryList = {
+  groups: {
+    category:
+      | "vegetables"
+      | "fruit"
+      | "meat"
+      | "fish"
+      | "dairy"
+      | "legumes"
+      | "pasta_rice_cereals"
+      | "pantry"
+      | "condiments"
+      | "other";
+    items: {
+      ingredientId: string;
+      ingredientName: string;
+      displayQuantity: string;
+    }[];
+  }[];
+  roundingExamples: {
+    grams: {
+      from780g: string;
+      from1230g: string;
+    };
+    milliliters: {
+      from65ml: string;
+    };
+    pieces: {
+      from2_2pieces: string;
+    };
+  };
+};
+
 type SavedOnboarding = {
   household: {
     id: string;
@@ -71,6 +105,7 @@ export function OnboardingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedOnboarding, setSavedOnboarding] = useState<SavedOnboarding | null>(null);
   const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
+  const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
 
   const updatePerson = <K extends keyof PersonInput>(index: number, field: K, value: PersonInput[K]) => {
     setPersons((current) =>
@@ -149,6 +184,7 @@ export function OnboardingForm() {
 
       setSavedOnboarding({ household, persons: createdPersons });
       setGeneratedMenu(null);
+      setGroceryList(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error while saving onboarding";
       setSubmitError(message);
@@ -173,8 +209,9 @@ export function OnboardingForm() {
       return;
     }
 
-    const menu = (await response.json()) as { meals: { day: string; meals: GeneratedMeal[] }[] };
+    const menu = (await response.json()) as { meals: { day: string; meals: GeneratedMeal[] }[]; groceryList: GroceryList };
     setGeneratedMenu(menu.meals);
+    setGroceryList(menu.groceryList);
   };
 
   if (savedOnboarding) {
@@ -222,6 +259,32 @@ export function OnboardingForm() {
               </div>
             ))}
           </div>
+        )}
+
+        {groceryList && (
+          <section className="space-y-3 rounded border border-emerald-200 bg-white p-3">
+            <h3 className="font-semibold text-emerald-900">Grocery List</h3>
+            <p className="text-xs text-emerald-700">
+              Rounding examples: 780 g → {groceryList.roundingExamples.grams.from780g}, 1230 g → {groceryList.roundingExamples.grams.from1230g},
+              65 ml → {groceryList.roundingExamples.milliliters.from65ml}, 2.2 pieces → {groceryList.roundingExamples.pieces.from2_2pieces}.
+            </p>
+            <div className="space-y-3">
+              {groceryList.groups.map((group) => (
+                <div className="rounded-md border border-emerald-100 p-3" key={group.category}>
+                  <h4 className="text-sm font-semibold capitalize text-emerald-900">{group.category.replaceAll("_", " ")}</h4>
+                  <ul className="mt-2 space-y-2">
+                    {group.items.map((item) => (
+                      <li className="flex items-center gap-2 text-sm text-emerald-900" key={`${group.category}-${item.ingredientId}`}>
+                        <input className="h-4 w-4" type="checkbox" />
+                        <span className="flex-1">{item.ingredientName}</span>
+                        <span className="text-emerald-700">{item.displayQuantity}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </section>
     );
