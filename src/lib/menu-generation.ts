@@ -45,6 +45,12 @@ type MealFoodGroupSlot = {
   mainFoodGroup: MainFoodGroup;
 };
 
+const snackSuggestionPool = {
+  breakfast: ["Yogurt + seasonal fruit", "Milk + whole-grain bread", "Ricotta + bread + fruit"],
+  afternoon_snack: ["Seasonal fruit + nuts", "Yogurt + fruit", "Bread + olive oil + tomato"],
+  morning_snack: ["Seasonal fruit", "Yogurt cup", "Whole-grain crackers"]
+} as const;
+
 const lunchDinnerMealTypes: Array<Extract<MealType, "lunch" | "dinner">> = ["lunch", "dinner"];
 
 export function estimateDailyCalories(person: Person): number {
@@ -266,6 +272,7 @@ export function generateWeeklyMenu(params: {
   planningDays?: number;
   weeklyFoodGroupRules?: WeeklyFoodGroupRules;
   preferredRecipeTags?: string[];
+  breakfastSnackMode?: "simple_suggestions" | "recipes";
 }) {
   const excludedFoodIds = [...new Set(params.persons.flatMap((p) => p.excludedFoodIds))];
   const usedRecipeIds = new Set<string>();
@@ -276,10 +283,43 @@ export function generateWeeklyMenu(params: {
   const preferredRecipeTags = new Set(params.preferredRecipeTags ?? []);
   const hasChildren = params.persons.some((person) => person.age < 18);
 
+  const breakfastSnackMode = params.breakfastSnackMode ?? "simple_suggestions";
+  const shouldGenerateBreakfast = params.persons.some((person) => person.defaultManagedMeals.includes("breakfast"));
+  const shouldGenerateAfternoonSnack = params.persons.some((person) => person.defaultManagedMeals.includes("afternoon_snack"));
+
   const sideDishes = filterRecipes(params.recipes, {
     mealCategory: "side_dish",
     excludedFoodIds,
     maxPrepMinutes: 30,
+    mustBePreppableDayBefore: false,
+    allowFrozenFood: params.allowFrozenFood,
+    weekNumber: params.weekNumber
+  });
+
+
+
+  const breakfastRecipes = filterRecipes(params.recipes, {
+    mealCategory: "breakfast",
+    excludedFoodIds,
+    maxPrepMinutes: 20,
+    mustBePreppableDayBefore: false,
+    allowFrozenFood: params.allowFrozenFood,
+    weekNumber: params.weekNumber
+  });
+
+  const morningSnackRecipes = filterRecipes(params.recipes, {
+    mealCategory: "morning_snack",
+    excludedFoodIds,
+    maxPrepMinutes: 15,
+    mustBePreppableDayBefore: false,
+    allowFrozenFood: params.allowFrozenFood,
+    weekNumber: params.weekNumber
+  });
+
+  const afternoonSnackRecipes = filterRecipes(params.recipes, {
+    mealCategory: "afternoon_snack",
+    excludedFoodIds,
+    maxPrepMinutes: 15,
     mustBePreppableDayBefore: false,
     allowFrozenFood: params.allowFrozenFood,
     weekNumber: params.weekNumber
@@ -367,12 +407,35 @@ export function generateWeeklyMenu(params: {
     const lunchSide = sideDishes[(dayIndex * 2) % Math.max(sideDishes.length, 1)];
     const dinnerSide = sideDishes[(dayIndex * 2 + 1) % Math.max(sideDishes.length, 1)];
 
+    const dailyMeals = [
+      buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons),
+      buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons)
+    ];
+
+    if (shouldGenerateBreakfast) {
+      if (breakfastSnackMode === "recipes") {
+        const breakfastRecipe = breakfastRecipes[dayIndex % Math.max(breakfastRecipes.length, 1)];
+        if (breakfastRecipe) dailyMeals.unshift(buildMeal("breakfast", [breakfastRecipe], params.persons));
+      } else {
+        const recipeName = snackSuggestionPool.breakfast[dayIndex % snackSuggestionPool.breakfast.length];
+        dailyMeals.unshift(buildSimpleSuggestionMeal("breakfast", recipeName, params.persons));
+      }
+    }
+
+    if (shouldGenerateAfternoonSnack) {
+      if (breakfastSnackMode === "recipes") {
+        const recipePool = [...afternoonSnackRecipes, ...morningSnackRecipes];
+        const snackRecipe = recipePool[dayIndex % Math.max(recipePool.length, 1)];
+        if (snackRecipe) dailyMeals.push(buildMeal("afternoon_snack", [snackRecipe], params.persons));
+      } else {
+        const recipeName = snackSuggestionPool.afternoon_snack[dayIndex % snackSuggestionPool.afternoon_snack.length];
+        dailyMeals.push(buildSimpleSuggestionMeal("afternoon_snack", recipeName, params.persons));
+      }
+    }
+
     return {
       day,
-      meals: [
-        buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons),
-        buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons)
-      ]
+      meals: dailyMeals
     };
   });
 
@@ -403,6 +466,29 @@ function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[],
         multiplier: Number(multiplier.toFixed(2)),
         portionLabel: getPortionLabel(multiplier),
         estimatedCalories: Math.round(standardMealKcal * multiplier),
+        macroTargets: estimateMacroTargets(person)
+      };
+    })
+  };
+}
+
+
+function buildSimpleSuggestionMeal(mealType: Extract<MealType, "breakfast" | "afternoon_snack">, suggestion: string, persons: Person[]) {
+  const baseCalories = mealType === "breakfast" ? 320 : 190;
+
+  return {
+    mealType,
+    recipes: [suggestion],
+    portions: persons.map((person) => {
+      const mealTargetKcal = estimateDailyCalories(person) * mealDistribution[mealType];
+      const multiplier = Math.max(0.6, Math.min(1.6, mealTargetKcal / Math.max(baseCalories, 1)));
+
+      return {
+        personId: person.id,
+        personName: person.name,
+        multiplier: Number(multiplier.toFixed(2)),
+        portionLabel: getPortionLabel(multiplier),
+        estimatedCalories: Math.round(baseCalories * multiplier),
         macroTargets: estimateMacroTargets(person)
       };
     })

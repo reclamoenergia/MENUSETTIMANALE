@@ -475,3 +475,24 @@ A practical V1 algorithm may:
 6. retry if constraints fail.
 
 The code should be structured so that a better optimization engine can be added later.
+
+## 14. Breakfast and afternoon snack generation (MVP)
+
+Breakfast and afternoon snack are generated only if enabled for at least one person in `defaultManagedMeals`.
+
+The system supports two modes:
+
+- `simple_suggestions`: rotates a short pool of practical daily suggestions;
+- `recipes`: selects recipes by meal category and rotates options across days.
+
+Category rules for recipe mode:
+
+- breakfast uses `breakfast` recipes;
+- afternoon snack uses `afternoon_snack` recipes, with fallback to `morning_snack` when needed.
+
+For both modes:
+
+- options rotate day by day to reduce repetition;
+- each person gets a specific multiplier derived from meal calorie distribution;
+- snack calories are included in meal-level nutritional estimates;
+- recipe-based snacks are included in the grocery list aggregation.
