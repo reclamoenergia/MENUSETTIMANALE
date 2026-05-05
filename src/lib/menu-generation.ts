@@ -200,7 +200,6 @@ type RecipeHardFilterOptions = {
   mustBePreppableDayBefore: boolean;
   allowFrozenFood: boolean;
   weekNumber: number;
-  targetMainFoodGroup?: MainFoodGroup;
 };
 
 type RecipeSoftScoreOptions = {
@@ -222,13 +221,7 @@ function isPastaOrCerealRecipe(recipe: RecipeWithIngredients): boolean {
 }
 
 function applyRecipeHardFilters(recipes: RecipeWithIngredients[], options: RecipeHardFilterOptions) {
-  return filterRecipes(recipes, options).filter((recipe) => {
-    if (options.targetMainFoodGroup && recipe.mainFoodGroup !== options.targetMainFoodGroup) {
-      return false;
-    }
-
-    return true;
-  });
+  return filterRecipes(recipes, options);
 }
 
 function scoreRecipeForMeal(recipe: RecipeWithIngredients, options: RecipeSoftScoreOptions): number {
@@ -274,6 +267,43 @@ function chooseRecipeWithDiversity(
   return scored[0]?.recipe;
 }
 
+function selectMealRecipeWithFallback(params: {
+  recipes: RecipeWithIngredients[];
+  hardFilterOptions: RecipeHardFilterOptions;
+  softScoreOptions: RecipeSoftScoreOptions;
+  targetMainFoodGroup?: MainFoodGroup;
+  allowPastaLimitFilter: boolean;
+}) {
+  const warnings: string[] = [];
+  const pastaFilter = (recipe: RecipeWithIngredients) => {
+    if (!params.allowPastaLimitFilter) return true;
+    if (!isPastaOrCerealRecipe(recipe)) return true;
+    return params.softScoreOptions.weeklyPastaCount < weeklyPastaLimit;
+  };
+
+  const baseCandidates = applyRecipeHardFilters(params.recipes, params.hardFilterOptions);
+  const strictTargetCandidates = baseCandidates
+    .filter((recipe) => !params.targetMainFoodGroup || recipe.mainFoodGroup === params.targetMainFoodGroup)
+    .filter(pastaFilter);
+  let selected = chooseRecipeWithDiversity(strictTargetCandidates, params.softScoreOptions);
+
+  if (!selected) {
+    const noTargetCandidates = baseCandidates.filter(pastaFilter);
+    selected = chooseRecipeWithDiversity(noTargetCandidates, { ...params.softScoreOptions, targetMainFoodGroup: undefined });
+  }
+
+  if (!selected) {
+    const relaxedCandidates = filterRecipes(params.recipes, params.hardFilterOptions);
+    selected = chooseRecipeWithDiversity(relaxedCandidates, { ...params.softScoreOptions, targetMainFoodGroup: undefined });
+  }
+
+  if (!selected) {
+    warnings.push("No compatible recipe found for this meal");
+  }
+
+  return { recipe: selected, warnings };
+}
+
 function getPortionLabel(multiplier: number): "Small" | "Medium" | "Large" {
   if (multiplier < 0.9) return "Small";
   if (multiplier > 1.2) return "Large";
@@ -289,6 +319,7 @@ export function generateWeeklyMenu(params: {
   weeklyFoodGroupRules?: WeeklyFoodGroupRules;
   preferredRecipeTags?: string[];
   breakfastSnackMode?: "simple_suggestions" | "recipes";
+  requireDayBeforePrepForLunch?: boolean;
 }) {
   const excludedFoodIds = [...new Set(params.persons.flatMap((p) => p.excludedFoodIds))];
   const usedRecipeIds = new Set<string>();
@@ -359,41 +390,56 @@ export function generateWeeklyMenu(params: {
   const dailyMeals = Object.entries(meals).map(([dayIndexRaw, targetGroups]) => {
     const dayIndex = Number(dayIndexRaw);
     const day = dayNames[dayIndex % dayNames.length];
-    const lunchRecipes = applyRecipeHardFilters(params.recipes, {
+    const lunchSelection = selectMealRecipeWithFallback({
+      recipes: params.recipes,
+      hardFilterOptions: {
       mealCategory: "lunch",
       excludedFoodIds,
       maxPrepMinutes: 45,
-      mustBePreppableDayBefore: dayIndex < 5,
+      mustBePreppableDayBefore: params.requireDayBeforePrepForLunch ?? false,
       allowFrozenFood: params.allowFrozenFood,
       weekNumber: params.weekNumber,
-      targetMainFoodGroup: targetGroups.lunch
+    },
+      targetMainFoodGroup: targetGroups.lunch,
+      softScoreOptions: {
+        usedRecipeIds,
+        recentMainIngredientIds,
+        recentFoodGroups,
+        preferredIngredientIds,
+        preferredRecipeTags,
+        hasChildren,
+        targetMainFoodGroup: targetGroups.lunch,
+        recentPastaRecipeIds,
+        weeklyPastaCount
+      },
+      allowPastaLimitFilter: true
     });
 
-    const dinnerRecipes = applyRecipeHardFilters(params.recipes, {
+    const lunch = lunchSelection.recipe;
+
+    const dinnerSelection = selectMealRecipeWithFallback({
+      recipes: params.recipes,
+      hardFilterOptions: {
       mealCategory: "dinner",
       excludedFoodIds,
       maxPrepMinutes: 45,
       mustBePreppableDayBefore: false,
       allowFrozenFood: params.allowFrozenFood,
-      weekNumber: params.weekNumber,
-      targetMainFoodGroup: targetGroups.dinner
-    });
-
-    const lunchCandidates = lunchRecipes.filter((recipe) => {
-      if (!isPastaOrCerealRecipe(recipe)) return true;
-      return weeklyPastaCount < weeklyPastaLimit;
-    });
-
-    const lunch = chooseRecipeWithDiversity(lunchCandidates, {
-      usedRecipeIds,
-      recentMainIngredientIds,
-      recentFoodGroups,
-      preferredIngredientIds,
-      preferredRecipeTags,
-      hasChildren,
-      targetMainFoodGroup: targetGroups.lunch,
-      recentPastaRecipeIds,
-      weeklyPastaCount
+      weekNumber: params.weekNumber
+    },
+      targetMainFoodGroup: targetGroups.dinner,
+      softScoreOptions: {
+        usedRecipeIds,
+        recentMainIngredientIds,
+        recentFoodGroups,
+        preferredIngredientIds,
+        preferredRecipeTags,
+        hasChildren,
+        targetMainFoodGroup: targetGroups.dinner,
+        recentPastaRecipeIds,
+        weeklyPastaCount
+      },
+      allowPastaLimitFilter: !lunch || !isPastaOrCerealRecipe(lunch)
     });
 
     if (lunch) {
@@ -407,24 +453,7 @@ export function generateWeeklyMenu(params: {
       }
     }
 
-    const dinnerCandidates = dinnerRecipes.filter((recipe) => {
-      if (!isPastaOrCerealRecipe(recipe)) return true;
-      if (weeklyPastaCount >= weeklyPastaLimit) return false;
-      if (lunch && isPastaOrCerealRecipe(lunch)) return false;
-      return true;
-    });
-
-    const dinner = chooseRecipeWithDiversity(dinnerCandidates, {
-      usedRecipeIds,
-      recentMainIngredientIds,
-      recentFoodGroups,
-      preferredIngredientIds,
-      preferredRecipeTags,
-      hasChildren,
-      targetMainFoodGroup: targetGroups.dinner,
-      recentPastaRecipeIds,
-      weeklyPastaCount
-    });
+    const dinner = dinnerSelection.recipe;
 
     if (dinner) {
       usedRecipeIds.add(dinner.id);
@@ -444,9 +473,14 @@ export function generateWeeklyMenu(params: {
     const lunchSide = sideDishes[(dayIndex * 2) % Math.max(sideDishes.length, 1)];
     const dinnerSide = sideDishes[(dayIndex * 2 + 1) % Math.max(sideDishes.length, 1)];
 
+    const lunchWarning = lunchSelection.warnings[0];
+    const dinnerWarning = dinnerSelection.warnings[0];
+
+    const lunchMeal = buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons);
+    const dinnerMeal = buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons);
     const dailyMeals = [
-      buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons),
-      buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons)
+      lunchWarning ? { ...lunchMeal, warning: lunchWarning } : lunchMeal,
+      dinnerWarning ? { ...dinnerMeal, warning: dinnerWarning } : dinnerMeal
     ];
 
     if (shouldGenerateBreakfast) {

@@ -154,12 +154,6 @@ export function generateGroceryList(params: {
     }
   }
 
-  if (missingIngredientsForRecipes.size > 0) {
-    throw new Error(
-      `Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`
-    );
-  }
-
   const items: GroceryListItem[] = Array.from(aggregated.values()).map((item) => {
     const rounded = formatRoundedQuantity(item.quantity, item.unit);
 
@@ -180,6 +174,10 @@ export function generateGroceryList(params: {
   }));
 
   return {
-    groups: grouped.filter((group) => group.items.length > 0)
+    groups: grouped.filter((group) => group.items.length > 0),
+    warnings:
+      missingIngredientsForRecipes.size > 0
+        ? [`Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`]
+        : []
   };
 }
