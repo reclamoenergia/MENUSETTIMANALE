@@ -52,6 +52,8 @@ const snackSuggestionPool = {
 } as const;
 
 const lunchDinnerMealTypes: Array<Extract<MealType, "lunch" | "dinner">> = ["lunch", "dinner"];
+const preferredNonCerealGroups = new Set<MainFoodGroup>(["legumes", "fish", "eggs", "cheese", "vegetarian", "white_meat"]);
+const weeklyPastaLimit = 3;
 
 export function estimateDailyCalories(person: Person): number {
   const baseBmr =
@@ -210,7 +212,14 @@ type RecipeSoftScoreOptions = {
   hasChildren: boolean;
   targetMainFoodGroup?: MainFoodGroup;
   recentPastaRecipeIds: string[];
+  weeklyPastaCount: number;
 };
+
+function isPastaOrCerealRecipe(recipe: RecipeWithIngredients): boolean {
+  const name = recipe.name.toLowerCase();
+  if (recipe.mainFoodGroup !== "cereals") return false;
+  return ["pasta", "riso", "risotto", "orzo", "farro", "cous cous", "gnocchi", "polenta"].some((token) => name.includes(token));
+}
 
 function applyRecipeHardFilters(recipes: RecipeWithIngredients[], options: RecipeHardFilterOptions) {
   return filterRecipes(recipes, options).filter((recipe) => {
@@ -241,6 +250,13 @@ function scoreRecipeForMeal(recipe: RecipeWithIngredients, options: RecipeSoftSc
   if (options.hasChildren && !recipe.suitableForChildren) score -= 10;
 
   if (recipe.mainFoodGroup === "cereals") score -= 8;
+  if (options.targetMainFoodGroup && preferredNonCerealGroups.has(options.targetMainFoodGroup) && recipe.mainFoodGroup === "cereals") {
+    score -= 35;
+  }
+  if (isPastaOrCerealRecipe(recipe)) {
+    if (options.weeklyPastaCount >= 2) score -= 55;
+    if (options.weeklyPastaCount >= weeklyPastaLimit) score -= 500;
+  }
   if (options.recentPastaRecipeIds.includes(recipe.id) && recipe.mainFoodGroup === "cereals") score -= 25;
 
   return score;
@@ -279,6 +295,7 @@ export function generateWeeklyMenu(params: {
   const recentMainIngredientIds: string[] = [];
   const recentFoodGroups: MainFoodGroup[] = [];
   const recentPastaRecipeIds: string[] = [];
+  let weeklyPastaCount = 0;
   const preferredIngredientIds = new Set(params.persons.flatMap((p) => p.preferredFoodIds));
   const preferredRecipeTags = new Set(params.preferredRecipeTags ?? []);
   const hasChildren = params.persons.some((person) => person.age < 18);
@@ -362,7 +379,12 @@ export function generateWeeklyMenu(params: {
       targetMainFoodGroup: targetGroups.dinner
     });
 
-    const lunch = chooseRecipeWithDiversity(lunchRecipes, {
+    const lunchCandidates = lunchRecipes.filter((recipe) => {
+      if (!isPastaOrCerealRecipe(recipe)) return true;
+      return weeklyPastaCount < weeklyPastaLimit;
+    });
+
+    const lunch = chooseRecipeWithDiversity(lunchCandidates, {
       usedRecipeIds,
       recentMainIngredientIds,
       recentFoodGroups,
@@ -370,7 +392,8 @@ export function generateWeeklyMenu(params: {
       preferredRecipeTags,
       hasChildren,
       targetMainFoodGroup: targetGroups.lunch,
-      recentPastaRecipeIds
+      recentPastaRecipeIds,
+      weeklyPastaCount
     });
 
     if (lunch) {
@@ -378,10 +401,20 @@ export function generateWeeklyMenu(params: {
       recentFoodGroups.push(lunch.mainFoodGroup);
       const ing = getMainIngredientId(lunch);
       if (ing) recentMainIngredientIds.push(ing);
-      if (lunch.mainFoodGroup === "cereals") recentPastaRecipeIds.push(lunch.id);
+      if (isPastaOrCerealRecipe(lunch)) {
+        recentPastaRecipeIds.push(lunch.id);
+        weeklyPastaCount += 1;
+      }
     }
 
-    const dinner = chooseRecipeWithDiversity(dinnerRecipes, {
+    const dinnerCandidates = dinnerRecipes.filter((recipe) => {
+      if (!isPastaOrCerealRecipe(recipe)) return true;
+      if (weeklyPastaCount >= weeklyPastaLimit) return false;
+      if (lunch && isPastaOrCerealRecipe(lunch)) return false;
+      return true;
+    });
+
+    const dinner = chooseRecipeWithDiversity(dinnerCandidates, {
       usedRecipeIds,
       recentMainIngredientIds,
       recentFoodGroups,
@@ -389,7 +422,8 @@ export function generateWeeklyMenu(params: {
       preferredRecipeTags,
       hasChildren,
       targetMainFoodGroup: targetGroups.dinner,
-      recentPastaRecipeIds
+      recentPastaRecipeIds,
+      weeklyPastaCount
     });
 
     if (dinner) {
@@ -397,7 +431,10 @@ export function generateWeeklyMenu(params: {
       recentFoodGroups.push(dinner.mainFoodGroup);
       const ing = getMainIngredientId(dinner);
       if (ing) recentMainIngredientIds.push(ing);
-      if (dinner.mainFoodGroup === "cereals") recentPastaRecipeIds.push(dinner.id);
+      if (isPastaOrCerealRecipe(dinner)) {
+        recentPastaRecipeIds.push(dinner.id);
+        weeklyPastaCount += 1;
+      }
     }
 
     while (recentFoodGroups.length > 4) recentFoodGroups.shift();

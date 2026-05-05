@@ -204,7 +204,11 @@ Simple V1 balancing heuristics:
 
 - rotate preferred main groups across lunch/dinner (legumes, fish, eggs, cheese, vegetarian, white meat, cereals);
 - penalize cereals when recently used, so pasta/rice do not dominate the week;
-- never place more than one cereals-based recipe in a single meal composition.
+- maximum 3 pasta/cereal meals in a 7-day plan;
+- maximum 1 pasta/cereal meal in each day;
+- never place pasta/cereal at both lunch and dinner in the same day;
+- strongly penalize pasta/cereal recipes after 2 weekly appearances;
+- when target group is legumes/fish/eggs/cheese/vegetarian/white meat, strongly prefer non-cereal recipes.
 
 The algorithm should also try to satisfy minimum weekly frequencies.
 
@@ -227,7 +231,7 @@ Rules:
 - assign one target `mainFoodGroup` to each lunch and dinner slot;
 - use `weeklyFoodGroupRules` min/max as balancing preferences;
 - avoid assigning the same `mainFoodGroup` in consecutive slots;
-- limit cereals-heavy slots (pasta/rice) across the period.
+- limit cereals-heavy slots (pasta/rice) across the period so cereals do not dominate.
 
 This layer outputs only food-group targets and does not select recipes.
 

@@ -38,7 +38,11 @@ const ingredients: SeedIngredient[] = [
   { id: "mozzarella", name: "Mozzarella", category: "dairy", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
   { id: "pane", name: "Pane", category: "bread_bakery", storageType: "pantry", shelfLifeDays: 3, recommendedPurchaseLeadDays: 1, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
   { id: "merluzzo", name: "Merluzzo", category: "fish", storageType: "freezer", shelfLifeDays: 180, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
-  { id: "yogurt", name: "Yogurt", category: "dairy", storageType: "fridge", shelfLifeDays: 14, recommendedPurchaseLeadDays: 3, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false }
+  { id: "yogurt", name: "Yogurt", category: "dairy", storageType: "fridge", shelfLifeDays: 14, recommendedPurchaseLeadDays: 3, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
+  { id: "carote", name: "Carote", category: "vegetables", storageType: "fridge", shelfLifeDays: 7, recommendedPurchaseLeadDays: 3, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
+  { id: "spinaci", name: "Spinaci", category: "vegetables", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: true },
+  { id: "tonno", name: "Tonno", category: "fish", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
+  { id: "ricotta", name: "Ricotta", category: "dairy", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false }
 ];
 
 type SeedRecipe = {
@@ -205,8 +209,9 @@ async function main() {
     });
   }
 
+  const createdRecipes: { id: string; name: string; mainFoodGroup: MainFoodGroup; isSideDish: boolean; mealCategories: RecipeMealCategory[] }[] = [];
   for (const recipe of recipes) {
-    await prisma.recipe.upsert({
+    const saved = await prisma.recipe.upsert({
       where: { name: recipe.name },
       update: {
         mealCategories: recipe.mealCategories,
@@ -227,6 +232,41 @@ async function main() {
         nutritionPerStandardPortion: { kcal: 400, proteinG: 20, carbsG: 40, fatG: 12, sugarsG: 6 },
         steps: ["Prepare ingredients", "Cook", "Serve"]
       }
+    });
+    createdRecipes.push({ id: saved.id, name: recipe.name, mainFoodGroup: recipe.mainFoodGroup, isSideDish: recipe.isSideDish ?? false, mealCategories: recipe.mealCategories });
+  }
+
+  await prisma.recipeIngredient.deleteMany({});
+
+  const ingredientByGroup: Record<MainFoodGroup, Array<{ ingredientId: string; quantity: number; unit: "g" | "ml" | "piece" }>> = {
+    cereals: [{ ingredientId: "pasta", quantity: 90, unit: "g" }, { ingredientId: "pomodoro", quantity: 120, unit: "g" }, { ingredientId: "zucchine", quantity: 120, unit: "g" }],
+    legumes: [{ ingredientId: "ceci", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 100, unit: "g" }, { ingredientId: "pane", quantity: 60, unit: "g" }],
+    fish: [{ ingredientId: "merluzzo", quantity: 160, unit: "g" }, { ingredientId: "patate", quantity: 150, unit: "g" }, { ingredientId: "zucchine", quantity: 100, unit: "g" }],
+    eggs: [{ ingredientId: "uova", quantity: 2, unit: "piece" }, { ingredientId: "patate", quantity: 120, unit: "g" }, { ingredientId: "insalata", quantity: 80, unit: "g" }],
+    cheese: [{ ingredientId: "mozzarella", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 120, unit: "g" }, { ingredientId: "pane", quantity: 70, unit: "g" }],
+    vegetarian: [{ ingredientId: "zucchine", quantity: 150, unit: "g" }, { ingredientId: "carote", quantity: 100, unit: "g" }, { ingredientId: "pane", quantity: 60, unit: "g" }],
+    white_meat: [{ ingredientId: "pollo", quantity: 170, unit: "g" }, { ingredientId: "patate", quantity: 150, unit: "g" }, { ingredientId: "insalata", quantity: 80, unit: "g" }],
+    vegetables: [{ ingredientId: "zucchine", quantity: 160, unit: "g" }, { ingredientId: "carote", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 100, unit: "g" }],
+    fruit: [{ ingredientId: "frutta_stagione", quantity: 180, unit: "g" }, { ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
+    snack: [{ ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "frutta_stagione", quantity: 150, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
+    red_meat: [{ ingredientId: "pollo", quantity: 0, unit: "g" }]
+  };
+
+  for (const recipe of createdRecipes) {
+    const base = recipe.isSideDish
+      ? [{ ingredientId: "zucchine", quantity: 150, unit: "g" as const }, { ingredientId: "pomodoro", quantity: 80, unit: "g" as const }]
+      : (ingredientByGroup[recipe.mainFoodGroup] ?? ingredientByGroup.vegetarian).slice(0, 3);
+    const extras = recipe.mealCategories.includes("breakfast") || recipe.mealCategories.includes("morning_snack") || recipe.mealCategories.includes("afternoon_snack")
+      ? [{ ingredientId: "frutta_stagione", quantity: 120, unit: "g" as const }, { ingredientId: "yogurt", quantity: 100, unit: "g" as const }]
+      : [{ ingredientId: "pane", quantity: 40, unit: "g" as const }, { ingredientId: "insalata", quantity: 70, unit: "g" as const }];
+    const selected = [...base, ...extras].slice(0, Math.min(recipe.isSideDish ? 2 : 5, 5));
+    await prisma.recipeIngredient.createMany({
+      data: selected.map((item) => ({
+        recipeId: recipe.id,
+        ingredientId: item.ingredientId,
+        quantityPerStandardPortion: item.quantity,
+        unit: item.unit
+      }))
     });
   }
 }
