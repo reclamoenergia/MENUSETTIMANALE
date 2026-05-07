@@ -121,7 +121,8 @@ function filterRecipes(
   });
 }
 
-const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 const rotationFoodGroups: MainFoodGroup[] = ["legumes", "fish", "eggs", "cheese", "vegetarian", "white_meat", "cereals"];
 
@@ -310,6 +311,8 @@ function getPortionLabel(multiplier: number): "Small" | "Medium" | "Large" {
   return "Medium";
 }
 
+type WeeklyBalanceSlot = { dayKey: string; mealType: "lunch" | "dinner"; mainFoodGroup: MainFoodGroup };
+
 export function generateWeeklyMenu(params: {
   persons: Person[];
   recipes: RecipeWithIngredients[];
@@ -320,14 +323,19 @@ export function generateWeeklyMenu(params: {
   preferredRecipeTags?: string[];
   breakfastSnackMode?: "simple_suggestions" | "recipes";
   requireDayBeforePrepForLunch?: boolean;
+  forbiddenFoodIds?: string[];
+  preferredFoodIds?: string[];
+  presence?: Record<string, boolean>;
+  sportDays?: Record<string, boolean>;
+  weeklyBalanceSlots?: WeeklyBalanceSlot[];
 }) {
-  const excludedFoodIds = [...new Set(params.persons.flatMap((p) => p.excludedFoodIds))];
+  const excludedFoodIds = [...new Set([...params.persons.flatMap((p) => p.excludedFoodIds), ...(params.forbiddenFoodIds ?? [])])];
   const usedRecipeIds = new Set<string>();
   const recentMainIngredientIds: string[] = [];
   const recentFoodGroups: MainFoodGroup[] = [];
   const recentPastaRecipeIds: string[] = [];
   let weeklyPastaCount = 0;
-  const preferredIngredientIds = new Set(params.persons.flatMap((p) => p.preferredFoodIds));
+  const preferredIngredientIds = new Set([...params.persons.flatMap((p) => p.preferredFoodIds), ...(params.preferredFoodIds ?? [])]);
   const preferredRecipeTags = new Set(params.preferredRecipeTags ?? []);
   const hasChildren = params.persons.some((person) => person.age < 18);
 
@@ -373,6 +381,23 @@ export function generateWeeklyMenu(params: {
     weekNumber: params.weekNumber
   });
 
+
+  const mealGroupBySlot = new Map<string, MainFoodGroup>();
+  for (const slot of params.weeklyBalanceSlots ?? []) {
+    mealGroupBySlot.set(`${slot.dayKey}:${slot.mealType}`, slot.mainFoodGroup);
+  }
+
+  const isPresentAtMeal = (personId: string, mealType: MealType, dayIndex: number): boolean => {
+    const day = dayKeys[dayIndex % dayKeys.length];
+    const key = `${mealType}:${day}:${personId}`;
+    return params.presence?.[key] ?? true;
+  };
+
+  const isSportDay = (personId: string, dayIndex: number): boolean => {
+    const day = dayKeys[dayIndex % dayKeys.length];
+    return params.sportDays?.[`sport:${day}:${personId}`] ?? false;
+  };
+
   const foodGroupPlan = generateMealFoodGroupPlan({
     planningDays: params.planningDays ?? dayNames.length,
     weeklyFoodGroupRules: params.weeklyFoodGroupRules
@@ -381,7 +406,8 @@ export function generateWeeklyMenu(params: {
   const meals = foodGroupPlan.slots
     .reduce<Record<number, { lunch?: MainFoodGroup; dinner?: MainFoodGroup }>>((acc, slot) => {
       const current = acc[slot.dayIndex] ?? {};
-      current[slot.mealType] = slot.mainFoodGroup;
+      const dayKey = dayKeys[slot.dayIndex % dayKeys.length];
+      current[slot.mealType] = mealGroupBySlot.get(`${dayKey}:${slot.mealType}`) ?? slot.mainFoodGroup;
       acc[slot.dayIndex] = current;
       return acc;
     }, {})
@@ -476,8 +502,8 @@ export function generateWeeklyMenu(params: {
     const lunchWarning = lunchSelection.warnings[0];
     const dinnerWarning = dinnerSelection.warnings[0];
 
-    const lunchMeal = buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons);
-    const dinnerMeal = buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons);
+    const lunchMeal = buildMeal("lunch", [lunch, lunchSide].filter(Boolean) as RecipeWithIngredients[], params.persons, dayIndex, isPresentAtMeal, isSportDay);
+    const dinnerMeal = buildMeal("dinner", [dinner, dinnerSide].filter(Boolean) as RecipeWithIngredients[], params.persons, dayIndex, isPresentAtMeal, isSportDay);
     const dailyMeals = [
       lunchWarning ? { ...lunchMeal, warning: lunchWarning } : lunchMeal,
       dinnerWarning ? { ...dinnerMeal, warning: dinnerWarning } : dinnerMeal
@@ -486,10 +512,10 @@ export function generateWeeklyMenu(params: {
     if (shouldGenerateBreakfast) {
       if (breakfastSnackMode === "recipes") {
         const breakfastRecipe = breakfastRecipes[dayIndex % Math.max(breakfastRecipes.length, 1)];
-        if (breakfastRecipe) dailyMeals.unshift(buildMeal("breakfast", [breakfastRecipe], params.persons));
+        if (breakfastRecipe) dailyMeals.unshift(buildMeal("breakfast", [breakfastRecipe], params.persons, dayIndex, isPresentAtMeal, isSportDay));
       } else {
         const recipeName = snackSuggestionPool.breakfast[dayIndex % snackSuggestionPool.breakfast.length];
-        dailyMeals.unshift(buildSimpleSuggestionMeal("breakfast", recipeName, params.persons));
+        dailyMeals.unshift(buildSimpleSuggestionMeal("breakfast", recipeName, params.persons, dayIndex, isPresentAtMeal, isSportDay));
       }
     }
 
@@ -497,10 +523,10 @@ export function generateWeeklyMenu(params: {
       if (breakfastSnackMode === "recipes") {
         const recipePool = [...afternoonSnackRecipes, ...morningSnackRecipes];
         const snackRecipe = recipePool[dayIndex % Math.max(recipePool.length, 1)];
-        if (snackRecipe) dailyMeals.push(buildMeal("afternoon_snack", [snackRecipe], params.persons));
+        if (snackRecipe) dailyMeals.push(buildMeal("afternoon_snack", [snackRecipe], params.persons, dayIndex, isPresentAtMeal, isSportDay));
       } else {
         const recipeName = snackSuggestionPool.afternoon_snack[dayIndex % snackSuggestionPool.afternoon_snack.length];
-        dailyMeals.push(buildSimpleSuggestionMeal("afternoon_snack", recipeName, params.persons));
+        dailyMeals.push(buildSimpleSuggestionMeal("afternoon_snack", recipeName, params.persons, dayIndex, isPresentAtMeal, isSportDay));
       }
     }
 
@@ -517,7 +543,7 @@ export function generateWeeklyMenu(params: {
   };
 }
 
-function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[], persons: Person[]) {
+function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[], persons: Person[], dayIndex: number, isPresentAtMeal: (personId: string, mealType: MealType, dayIndex: number) => boolean, isSportDay: (personId: string, dayIndex: number) => boolean) {
   const standardMealKcal = selectedRecipes.reduce((sum, recipe) => {
     const nutrition = recipe.nutritionPerStandardPortion as { kcal?: number };
     return sum + (nutrition.kcal ?? 0);
@@ -526,8 +552,10 @@ function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[],
   return {
     mealType,
     recipes: selectedRecipes.map((recipe) => recipe.name),
-    portions: persons.map((person) => {
-      const mealTargetKcal = estimateDailyCalories(person) * mealDistribution[mealType];
+    portions: persons.filter((person) => isPresentAtMeal(person.id, mealType, dayIndex)).map((person) => {
+      const sportBoost = isSportDay(person.id, dayIndex) ? 1.1 : 1;
+      // MVP simplification: flat +10% on sport days, without duration/intensity modeling yet.
+      const mealTargetKcal = estimateDailyCalories(person) * sportBoost * mealDistribution[mealType];
       // MVP simplification: cap multipliers rather than adding complex additions/substitutions.
       const multiplier = Math.max(0.6, Math.min(1.6, mealTargetKcal / Math.max(standardMealKcal, 1)));
 
@@ -544,14 +572,16 @@ function buildMeal(mealType: MealType, selectedRecipes: RecipeWithIngredients[],
 }
 
 
-function buildSimpleSuggestionMeal(mealType: Extract<MealType, "breakfast" | "afternoon_snack">, suggestion: string, persons: Person[]) {
+function buildSimpleSuggestionMeal(mealType: Extract<MealType, "breakfast" | "afternoon_snack">, suggestion: string, persons: Person[], dayIndex: number, isPresentAtMeal: (personId: string, mealType: MealType, dayIndex: number) => boolean, isSportDay: (personId: string, dayIndex: number) => boolean) {
   const baseCalories = mealType === "breakfast" ? 320 : 190;
 
   return {
     mealType,
     recipes: [suggestion],
-    portions: persons.map((person) => {
-      const mealTargetKcal = estimateDailyCalories(person) * mealDistribution[mealType];
+    portions: persons.filter((person) => isPresentAtMeal(person.id, mealType, dayIndex)).map((person) => {
+      const sportBoost = isSportDay(person.id, dayIndex) ? 1.1 : 1;
+      // MVP simplification: flat +10% on sport days, without duration/intensity modeling yet.
+      const mealTargetKcal = estimateDailyCalories(person) * sportBoost * mealDistribution[mealType];
       const multiplier = Math.max(0.6, Math.min(1.6, mealTargetKcal / Math.max(baseCalories, 1)));
 
       return {
