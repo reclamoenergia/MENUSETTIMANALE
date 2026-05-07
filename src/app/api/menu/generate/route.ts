@@ -6,7 +6,12 @@ import { z } from "zod";
 
 const schema = z.object({
   householdId: z.string().min(1),
-  breakfastSnackMode: z.enum(["simple_suggestions", "recipes"]).optional()
+  breakfastSnackMode: z.enum(["simple_suggestions", "recipes"]).optional(),
+  forbiddenFoodIds: z.array(z.string()).optional(),
+  preferredFoodIds: z.array(z.string()).optional(),
+  presence: z.record(z.boolean()).optional(),
+  sportDays: z.record(z.boolean()).optional(),
+  weeklyBalanceSlots: z.array(z.object({ dayKey: z.string(), mealType: z.enum(["lunch","dinner"]), mainFoodGroup: z.enum(["cereals","legumes","fish","white_meat","red_meat","eggs","cheese","vegetarian"]) })).optional()
 });
 
 export async function POST(request: Request) {
@@ -29,7 +34,12 @@ export async function POST(request: Request) {
     recipes,
     weekNumber,
     allowFrozenFood: false,
-    breakfastSnackMode: parsed.data.breakfastSnackMode
+    breakfastSnackMode: parsed.data.breakfastSnackMode,
+    forbiddenFoodIds: parsed.data.forbiddenFoodIds,
+    preferredFoodIds: parsed.data.preferredFoodIds,
+    presence: parsed.data.presence,
+    sportDays: parsed.data.sportDays,
+    weeklyBalanceSlots: parsed.data.weeklyBalanceSlots
   });
   let groceryList;
   try {
