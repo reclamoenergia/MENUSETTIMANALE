@@ -1,4 +1,4 @@
-import { generateGroceryList } from "@/lib/grocery-list";
+import { generateGroceryList } from "@/lib/menu-generation/groceryListGenerator";
 import { generateWeeklyMenu } from "@/lib/menu-generation";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
