@@ -260,13 +260,35 @@ async function main() {
       ? [{ ingredientId: "frutta_stagione", quantity: 120, unit: "g" as const }, { ingredientId: "yogurt", quantity: 100, unit: "g" as const }]
       : [{ ingredientId: "pane", quantity: 40, unit: "g" as const }, { ingredientId: "insalata", quantity: 70, unit: "g" as const }];
     const selected = [...base, ...extras].slice(0, Math.min(recipe.isSideDish ? 2 : 5, 5));
+
+    const deduplicatedByIngredientId = Array.from(
+      selected.reduce(
+        (acc, item) => {
+          const existing = acc.get(item.ingredientId);
+          if (!existing) {
+            acc.set(item.ingredientId, { ...item });
+            return acc;
+          }
+
+          acc.set(item.ingredientId, {
+            ...existing,
+            quantity: existing.quantity + item.quantity
+          });
+
+          return acc;
+        },
+        new Map<string, (typeof selected)[number]>()
+      ).values()
+    );
+
     await prisma.recipeIngredient.createMany({
-      data: selected.map((item) => ({
+      data: deduplicatedByIngredientId.map((item) => ({
         recipeId: recipe.id,
         ingredientId: item.ingredientId,
         quantityPerStandardPortion: item.quantity,
         unit: item.unit
-      }))
+      })),
+      skipDuplicates: true
     });
   }
 }
