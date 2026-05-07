@@ -84,7 +84,8 @@ export function OnboardingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedOnboarding, setSavedOnboarding] = useState<{ household: { id: string; name: string }; persons: SavedPerson[] } | null>(null);
   const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
-  const [groceryList, setGroceryList] = useState<any>(null);
+  const [groceryList, setGroceryList] = useState<Record<string, unknown> | null>(null);
+
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
   const [selectedPreferredFoods, setSelectedPreferredFoods] = useState<string[]>([]);
@@ -97,8 +98,7 @@ export function OnboardingForm() {
   };
 
   const parseNumericInput = (value: string): number | undefined => (value === "" ? undefined : Number(value));
-
-  const addPerson = () => setPersons((current) => [...current, defaultPerson]);
+  const addPerson = () => setPersons((current) => [...current, { ...defaultPerson }]);
   const removePerson = (index: number) => setPersons((current) => current.filter((_, personIndex) => personIndex !== index));
 
   const toggleFood = (current: string[], setFn: (next: string[]) => void, id: string) => {
@@ -106,14 +106,8 @@ export function OnboardingForm() {
   };
 
   const keyFor = (mealOrSport: string, day: string, personId: string) => `${mealOrSport}:${day}:${personId}`;
-
-  const setPresence = (mealType: string, day: string, personId: string, checked: boolean) => {
-    setPresenceMap((prev) => ({ ...prev, [keyFor(mealType, day, personId)]: checked }));
-  };
-
-  const setSportDay = (day: string, personId: string, checked: boolean) => {
-    setSportDaysMap((prev) => ({ ...prev, [keyFor("sport", day, personId)]: checked }));
-  };
+  const setPresence = (mealType: string, day: string, personId: string, checked: boolean) => setPresenceMap((prev) => ({ ...prev, [keyFor(mealType, day, personId)]: checked }));
+  const setSportDay = (day: string, personId: string, checked: boolean) => setSportDaysMap((prev) => ({ ...prev, [keyFor("sport", day, personId)]: checked }));
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -142,7 +136,7 @@ export function OnboardingForm() {
         createdPersons.push(await personResponse.json());
       }
       setSavedOnboarding({ household, persons: createdPersons });
-      setStep(1);
+      setStep(2);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unexpected error while saving onboarding");
     } finally {
@@ -154,6 +148,7 @@ export function OnboardingForm() {
 
   const generateMenu = async () => {
     if (!savedOnboarding) return;
+    setSubmitError(null);
     const response = await fetch("/api/menu/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -176,9 +171,111 @@ export function OnboardingForm() {
     setGroceryList(menu.groceryList);
   };
 
+  const navigateNext = async () => {
+    if (step === 6) {
+      await generateMenu();
+      return;
+    }
+    setStep((prev) => Math.min(prev + 1, 6));
+  };
+
+  const navigateBack = () => setStep((prev) => Math.max(prev - 1, savedOnboarding ? 2 : 1));
+
   if (!savedOnboarding) {
-    return <form onSubmit={onSubmit}><button type="submit">start</button></form>;
+    return (
+      <form onSubmit={onSubmit} className="space-y-4 rounded border bg-white p-4">
+        <h2 className="text-lg font-semibold">Step 1 — Household</h2>
+        <label className="block text-sm">Email<input className="mt-1 w-full rounded border p-2" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+        <label className="block text-sm">Household name<input className="mt-1 w-full rounded border p-2" value={householdName} onChange={(e) => setHouseholdName(e.target.value)} required /></label>
+        {persons.map((person, index) => (
+          <div key={index} className="space-y-2 rounded border p-3">
+            <div className="flex items-center justify-between"><h3 className="font-medium">Person {index + 1}</h3>{persons.length > 1 ? <button type="button" className="text-red-600" onClick={() => removePerson(index)}>Remove</button> : null}</div>
+            <input className="w-full rounded border p-2" placeholder="Name" value={person.name} onChange={(e) => updatePerson(index, "name", e.target.value)} required />
+            <div className="grid grid-cols-2 gap-2">
+              <input className="rounded border p-2" placeholder="Age" type="number" value={person.age ?? ""} onChange={(e) => updatePerson(index, "age", parseNumericInput(e.target.value))} required />
+              <select className="rounded border p-2" value={person.sex} onChange={(e) => updatePerson(index, "sex", e.target.value as PersonInput["sex"])}><option value="female">Female</option><option value="male">Male</option></select>
+              <input className="rounded border p-2" placeholder="Height (cm)" type="number" value={person.heightCm ?? ""} onChange={(e) => updatePerson(index, "heightCm", parseNumericInput(e.target.value))} required />
+              <input className="rounded border p-2" placeholder="Weight (kg)" type="number" value={person.weightKg ?? ""} onChange={(e) => updatePerson(index, "weightKg", parseNumericInput(e.target.value))} required />
+            </div>
+          </div>
+        ))}
+        <button type="button" className="rounded border px-3 py-2" onClick={addPerson}>Add person</button>
+        <div><button className="rounded bg-slate-900 px-4 py-2 text-white" type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save household"}</button></div>
+        {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
+      </form>
+    );
   }
 
-  return <div>Configured people: {savedOnboarding.persons.length}. Step {step}.<button onClick={generateMenu}>Generate</button>{dinnerCerealsWarning ? <p>Dinner cereals selected by user choice.</p> : null}</div>;
+  return (
+    <div className="space-y-4 rounded border bg-white p-4">
+      <p className="text-sm text-slate-600">Household: {savedOnboarding.household.name} · Step {step}/6</p>
+
+      {step === 2 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Step 2 — Food preferences</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div><h3 className="font-medium">Forbidden foods</h3>{foodOptions.map((food) => <label key={`f-${food.id}`} className="block"><input type="checkbox" checked={selectedForbiddenFoods.includes(food.id)} onChange={() => toggleFood(selectedForbiddenFoods, setSelectedForbiddenFoods, food.id)} /> {food.label}</label>)}</div>
+            <div><h3 className="font-medium">Preferred foods</h3>{foodOptions.map((food) => <label key={`p-${food.id}`} className="block"><input type="checkbox" checked={selectedPreferredFoods.includes(food.id)} onChange={() => toggleFood(selectedPreferredFoods, setSelectedPreferredFoods, food.id)} /> {food.label}</label>)}</div>
+          </div>
+        </section>
+      ) : null}
+
+      {step === 3 ? (
+        <section className="space-y-3 overflow-auto">
+          <h2 className="text-lg font-semibold">Step 3 — Meal presence</h2>
+          {savedOnboarding.persons.map((person) => (
+            <div key={person.id} className="space-y-2">
+              <h3 className="font-medium">{person.name}</h3>
+              <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Meal</th>{weeklyDays.map((d) => <th key={d} className="border p-1">{d}</th>)}</tr></thead>
+                <tbody>{mealRows.map((meal) => <tr key={`${person.id}-${meal}`}><td className="border p-1">{mealTypeLabel[meal]}</td>{dayKeys.map((day, i) => <td key={`${person.id}-${meal}-${day}`} className="border p-1 text-center"><input type="checkbox" checked={presenceMap[keyFor(meal, day, person.id)] ?? true} onChange={(e) => setPresence(meal, day, person.id, e.target.checked)} /></td>)}</tr>)}</tbody></table>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {step === 4 ? (
+        <section className="space-y-3 overflow-auto">
+          <h2 className="text-lg font-semibold">Step 4 — Sport days</h2>
+          <p className="text-sm text-slate-600">Sport day applies +10% calories for that person/day.</p>
+          <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Person</th>{weeklyDays.map((d) => <th key={d} className="border p-1">{d}</th>)}</tr></thead>
+            <tbody>{savedOnboarding.persons.map((person) => <tr key={`sport-${person.id}`}><td className="border p-1">{person.name}</td>{dayKeys.map((day) => <td key={`${person.id}-${day}`} className="border p-1 text-center"><input type="checkbox" checked={sportDaysMap[keyFor("sport", day, person.id)] ?? false} onChange={(e) => setSportDay(day, person.id, e.target.checked)} /></td>)}</tr>)}</tbody></table>
+        </section>
+      ) : null}
+
+      {step === 5 ? (
+        <section className="space-y-3 overflow-auto">
+          <h2 className="text-lg font-semibold">Step 5 — Weekly balance plan</h2>
+          <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Day</th><th className="border p-1">Lunch type</th><th className="border p-1">Dinner type</th></tr></thead>
+            <tbody>{dayKeys.map((day, index) => {
+              const lunchSlot = balancePlan.find((slot) => slot.dayKey === day && slot.mealType === "lunch");
+              const dinnerSlot = balancePlan.find((slot) => slot.dayKey === day && slot.mealType === "dinner");
+              return <tr key={day}><td className="border p-1">{weeklyDays[index]}</td><td className="border p-1"><select className="w-full rounded border p-1" value={lunchSlot?.mainFoodGroup ?? "cereals"} onChange={(e) => setBalancePlan((prev) => prev.map((slot) => slot.dayKey === day && slot.mealType === "lunch" ? { ...slot, mainFoodGroup: e.target.value as MainFoodGroup } : slot))}>{foodGroups.map((group) => <option key={`l-${day}-${group}`} value={group}>{group}</option>)}</select></td><td className="border p-1"><select className="w-full rounded border p-1" value={dinnerSlot?.mainFoodGroup ?? "white_meat"} onChange={(e) => setBalancePlan((prev) => prev.map((slot) => slot.dayKey === day && slot.mealType === "dinner" ? { ...slot, mainFoodGroup: e.target.value as MainFoodGroup } : slot))}>{foodGroups.map((group) => <option key={`d-${day}-${group}`} value={group}>{group}</option>)}</select></td></tr>;
+            })}</tbody></table>
+          {dinnerCerealsWarning ? <p className="rounded bg-amber-50 p-2 text-amber-800">Warning: cereals selected at dinner. Allowed, but not recommended.</p> : null}
+        </section>
+      ) : null}
+
+      {step === 6 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Step 6 — Review & confirm</h2>
+          <ul className="list-disc pl-5 text-sm">
+            <li>Forbidden foods: {selectedForbiddenFoods.join(", ") || "none"}</li>
+            <li>Preferred foods: {selectedPreferredFoods.join(", ") || "none"}</li>
+            <li>People configured: {savedOnboarding.persons.length}</li>
+          </ul>
+          <p className="text-sm">Confirm to generate the weekly menu using all onboarding inputs.</p>
+        </section>
+      ) : null}
+
+      <div className="flex gap-2">
+        <button type="button" className="rounded border px-3 py-2" onClick={navigateBack} disabled={step <= 2}>Back</button>
+        <button type="button" className="rounded bg-slate-900 px-4 py-2 text-white" onClick={navigateNext}>{step === 6 ? "Confirm & generate" : "Next"}</button>
+      </div>
+
+      {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
+
+      {generatedMenu ? <section className="space-y-3"><h2 className="text-lg font-semibold">Generated menu</h2>{generatedMenu.map((day) => <div key={day.day} className="rounded border p-3"><h3 className="font-medium">{day.day}</h3>{day.meals.map((meal, index) => <div key={`${day.day}-${meal.mealType}-${index}`} className="mt-2 text-sm"><p className="font-medium">{mealTypeLabel[meal.mealType]}: {meal.recipes.join(" + ")}</p>{meal.warning ? <p className="text-amber-700">⚠ {meal.warning}</p> : null}</div>)}</div>)}</section> : null}
+      {groceryList ? <details><summary className="cursor-pointer font-medium">Grocery list payload</summary><pre className="mt-2 overflow-auto rounded bg-slate-100 p-2 text-xs">{JSON.stringify(groceryList, null, 2)}</pre></details> : null}
+    </div>
+  );
 }
