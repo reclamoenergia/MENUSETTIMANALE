@@ -1,322 +1,103 @@
-import {
-  IngredientCategory,
-  MainFoodGroup,
-  PrismaClient,
-  RecipeMealCategory,
-  RecipeTag,
-  StorageType
-} from "@prisma/client";
+import { IngredientCategory, PrismaClient } from "@prisma/client";
+import { ingredients } from "./seed-data/ingredients";
+import { recipes } from "./seed-data/recipes";
 
 const prisma = new PrismaClient();
 
-const allWeeks = Array.from({ length: 52 }, (_, i) => i + 1);
+function validateSeedData(): void {
+  const ingredientIds = new Set(ingredients.map((i) => i.id));
 
-type SeedIngredient = {
-  id: string;
-  name: string;
-  category: IngredientCategory;
-  storageType: StorageType;
-  shelfLifeDays: number;
-  recommendedPurchaseLeadDays: number;
-  isSeasonal: boolean;
-  seasonWeeks: number[];
-  hasFrozenOption: boolean;
-};
+  for (const recipe of recipes) {
+    if (recipe.ingredients.length === 0) {
+      throw new Error(`Recipe ${recipe.id} (${recipe.name}) has no ingredients.`);
+    }
 
-const ingredients: SeedIngredient[] = [
-  { id: "pasta", name: "Pasta", category: "pasta_rice_cereals", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "riso", name: "Riso", category: "pasta_rice_cereals", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "zucchine", name: "Zucchine", category: "vegetables", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38], hasFrozenOption: true },
-  { id: "pomodoro", name: "Pomodoro", category: "vegetables", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40], hasFrozenOption: true },
-  { id: "insalata", name: "Insalata", category: "vegetables", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42], hasFrozenOption: false },
-  { id: "patate", name: "Patate", category: "vegetables", storageType: "pantry", shelfLifeDays: 30, recommendedPurchaseLeadDays: 5, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "banana", name: "Banana", category: "fruit", storageType: "pantry", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "apple", name: "Apple", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
-  { id: "pear", name: "Pear", category: "fruit", storageType: "fridge", shelfLifeDays: 8, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
-  { id: "peach", name: "Peach", category: "fruit", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [23,24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
-  { id: "apricot", name: "Apricot", category: "fruit", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [20,21,22,23,24,25,26,27,28], hasFrozenOption: false },
-  { id: "orange", name: "Orange", category: "fruit", storageType: "fridge", shelfLifeDays: 12, recommendedPurchaseLeadDays: 3, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,45,46,47,48,49,50,51,52], hasFrozenOption: false },
-  { id: "mandarin", name: "Mandarin", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
-  { id: "grapes", name: "Grapes", category: "fruit", storageType: "fridge", shelfLifeDays: 7, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [31,32,33,34,35,36,37,38,39,40,41], hasFrozenOption: false },
-  { id: "strawberries", name: "Strawberries", category: "fruit", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [14,15,16,17,18,19,20,21,22,23,24,25], hasFrozenOption: false },
-  { id: "kiwi", name: "Kiwi", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,45,46,47,48,49,50,51,52], hasFrozenOption: false },
-  { id: "melon", name: "Melon", category: "fruit", storageType: "fridge", shelfLifeDays: 6, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [22,23,24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
-  { id: "watermelon", name: "Watermelon", category: "fruit", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
-  { id: "ceci", name: "Ceci", category: "legumes", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "lenticchie", name: "Lenticchie", category: "legumes", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "pollo", name: "Pollo", category: "meat", storageType: "fridge", shelfLifeDays: 2, recommendedPurchaseLeadDays: 1, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
-  { id: "uova", name: "Uova", category: "eggs", storageType: "fridge", shelfLifeDays: 20, recommendedPurchaseLeadDays: 5, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "mozzarella", name: "Mozzarella", category: "dairy", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "pane", name: "Pane", category: "bread_bakery", storageType: "pantry", shelfLifeDays: 3, recommendedPurchaseLeadDays: 1, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
-  { id: "merluzzo", name: "Merluzzo", category: "fish", storageType: "freezer", shelfLifeDays: 180, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
-  { id: "yogurt", name: "Yogurt", category: "dairy", storageType: "fridge", shelfLifeDays: 14, recommendedPurchaseLeadDays: 3, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "carote", name: "Carote", category: "vegetables", storageType: "fridge", shelfLifeDays: 7, recommendedPurchaseLeadDays: 3, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
-  { id: "spinaci", name: "Spinaci", category: "vegetables", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: true },
-  { id: "tonno", name: "Tonno", category: "fish", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "ricotta", name: "Ricotta", category: "dairy", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false }
-];
+    if (!recipe.nutritionPerStandardPortion) {
+      throw new Error(`Recipe ${recipe.id} (${recipe.name}) has no nutrition data.`);
+    }
 
-type SeedRecipe = {
-  name: string;
-  mealCategories: RecipeMealCategory[];
-  mainFoodGroup: MainFoodGroup;
-  recipeTags?: RecipeTag[];
-  isSideDish?: boolean;
-};
+    const seen = new Set<string>();
+    for (const ri of recipe.ingredients) {
+      if (!ingredientIds.has(ri.ingredientId)) {
+        throw new Error(`Recipe ${recipe.id} (${recipe.name}) references missing ingredient ${ri.ingredientId}.`);
+      }
+      if (seen.has(ri.ingredientId)) {
+        throw new Error(`Recipe ${recipe.id} (${recipe.name}) contains duplicate ingredient ${ri.ingredientId}.`);
+      }
+      seen.add(ri.ingredientId);
+    }
 
-const recipes: SeedRecipe[] = [
-  { name: "Pasta al pomodoro semplice", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Pasta con zucchine", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetarian" },
-  { name: "Pasta e lenticchie", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Pasta e ceci", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Pasta con ricotta e pomodoro", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Riso con piselli", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Risotto zucchine e parmigiano", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Cous cous con verdure", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetarian" },
-  { name: "Pasta integrale con tonno e pomodoro", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Minestra di verdure con pasta", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetables" },
-  { name: "Riso al pomodoro e basilico", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Orzo con zucchine e carote", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Farro con piselli", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Zuppa di legumi misti", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Crema di zucca con crostini", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetables" },
-  { name: "Passato di verdure con riso", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetables" },
-  { name: "Gnocchi al pomodoro", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cereals" },
-  { name: "Polenta morbida con formaggio", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Minestra d'orzo e lenticchie", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Riso con zucca e parmigiano", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Vellutata di carote e patate", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "vegetables" },
-  { name: "Cous cous con pollo e verdure", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Riso integrale con ceci e pomodoro", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Pasta e fagioli semplice", mealCategories: ["first_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-
-  { name: "Insalata di riso con verdure e uova", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Riso basmati con pollo e zucchine", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Bowl con ceci, riso e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Frittata con patate e insalata", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Piadina con pollo, lattuga e pomodoro", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Piatto unico con mozzarella, pane e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Pasta fredda con tonno e pomodorini", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Cous cous con ceci e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Pollo con patate e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Uova strapazzate con pane e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Bowl di farro con tonno e mais", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Insalata di patate, fagiolini e uova", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Riso con salmone e zucchine", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Polpette di ceci con insalata e pane", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Focaccia farcita con mozzarella e pomodoro", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Piatto unico con hummus, carote e pane", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Wrap con tacchino e verdure grigliate", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Insalata di orzo con verdure e feta", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Piatto unico con uova al tegamino, patate e spinaci", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Riso basmati con lenticchie e verdure", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Insalata di quinoa con pollo e cetriolo", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Piatto unico con ricotta, pane e pomodorini", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Salmone al forno con riso e zucchine", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Insalata tiepida di ceci, patate e carote", mealCategories: ["single_dish", "lunch", "dinner"], mainFoodGroup: "legumes" },
-
-  { name: "Petto di pollo alla piastra", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Tacchino al limone", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Merluzzo al forno", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Orata al forno", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Tonno al naturale con insalata", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Uova sode", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Frittata semplice", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Hamburger di legumi", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Polpette di tacchino al forno", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Mozzarella con pomodoro", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Straccetti di pollo con limone", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Cosce di pollo al forno", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Bocconcini di tacchino al rosmarino", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "white_meat" },
-  { name: "Salmone al cartoccio", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Filetti di platessa al forno", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Sgombro al forno con erbe", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "fish" },
-  { name: "Uova al tegamino", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Omelette al formaggio", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "eggs" },
-  { name: "Ceci al pomodoro", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Lenticchie in umido", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Burger di ceci e carote", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "legumes" },
-  { name: "Ricotta con erbette", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Primo sale con zucchine grigliate", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "cheese" },
-  { name: "Tofu alla piastra con salsa di yogurt", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "vegetarian" },
-  { name: "Frittata di zucchine", mealCategories: ["second_course", "lunch", "dinner"], mainFoodGroup: "eggs" },
-
-  { name: "Zucchine grigliate", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Carote crude a julienne", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Insalata verde con pomodoro", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Finocchi crudi", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Spinaci lessi", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Bietole saltate", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Broccoli al vapore", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Melanzane grigliate", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Peperoni al forno", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Patate lesse", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Patate al forno", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Fagiolini al vapore", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Piselli in padella", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Cavolfiore lesso", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Zucca al forno", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Insalata di carote e mais", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Pomodori in insalata", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Verdure miste al forno", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Cime di rapa saltate", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Zucchine trifolate", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Cavolo cappuccio in padella", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Barbabietole in insalata", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Ratatouille semplice", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Patate e carote al vapore", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Insalata di cetrioli", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Carote cotte al vapore", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-  { name: "Peperoni in padella", mealCategories: ["side_dish", "lunch", "dinner"], mainFoodGroup: "vegetables", isSideDish: true },
-
-  { name: "Yogurt bianco con frutta di stagione", mealCategories: ["breakfast", "morning_snack"], mainFoodGroup: "fruit" },
-  { name: "Latte con cereali", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Pane integrale con marmellata", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Pancake semplici", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Porridge con banana", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Ricotta con miele e frutta", mealCategories: ["breakfast", "morning_snack"], mainFoodGroup: "cheese" },
-  { name: "Toast semplice con formaggio fresco", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-  { name: "Pane e olio con frutta", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Yogurt con avena e mela", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-  { name: "Uovo strapazzato e pane tostato", mealCategories: ["breakfast"], mainFoodGroup: "eggs" },
-  { name: "Frullato banana e yogurt", mealCategories: ["breakfast"], mainFoodGroup: "fruit" },
-  { name: "Budino di chia e latte", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-  { name: "Toast con ricotta e marmellata", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-  { name: "Muesli con yogurt", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Crepes semplici con frutta", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Pane tostato con burro di arachidi", mealCategories: ["breakfast"], mainFoodGroup: "cereals" },
-  { name: "Latte e biscotti semplici", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-  { name: "Yogurt con pera e cannella", mealCategories: ["breakfast"], mainFoodGroup: "fruit" },
-  { name: "Pane con ricotta e cacao", mealCategories: ["breakfast"], mainFoodGroup: "cheese" },
-
-  { name: "Frutta fresca di stagione", mealCategories: ["morning_snack", "afternoon_snack", "evening_snack"], mainFoodGroup: "fruit" },
-  { name: "Yogurt con frutta secca", mealCategories: ["morning_snack", "afternoon_snack", "evening_snack"], mainFoodGroup: "snack" },
-  { name: "Pane e formaggio fresco", mealCategories: ["morning_snack", "afternoon_snack", "evening_snack"], mainFoodGroup: "snack" },
-  { name: "Yogurt bianco", mealCategories: ["afternoon_snack"], mainFoodGroup: "cheese" },
-  { name: "Pane e hummus", mealCategories: ["afternoon_snack"], mainFoodGroup: "legumes" },
-  { name: "Mela a fette e yogurt", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Toast piccolo con ricotta", mealCategories: ["afternoon_snack"], mainFoodGroup: "cheese" },
-  { name: "Crackers integrali e formaggio", mealCategories: ["afternoon_snack"], mainFoodGroup: "cereals" },
-  { name: "Banana e mandorle", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Pera e cubetti di parmigiano", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Coppetta di frutta mista", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Yogurt e cereali croccanti", mealCategories: ["afternoon_snack"], mainFoodGroup: "cereals" },
-  { name: "Pane tostato con pomodoro", mealCategories: ["afternoon_snack"], mainFoodGroup: "vegetarian" },
-  { name: "Piccolo smoothie fragola e banana", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Muffin integrale semplice", mealCategories: ["afternoon_snack"], mainFoodGroup: "cereals" },
-  { name: "Ricotta con frutta fresca", mealCategories: ["afternoon_snack"], mainFoodGroup: "cheese" },
-  { name: "Yogurt con purea di frutta", mealCategories: ["afternoon_snack"], mainFoodGroup: "cheese" },
-  { name: "Pane e crema di ceci", mealCategories: ["afternoon_snack"], mainFoodGroup: "legumes" },
-  { name: "Spicchi di arancia", mealCategories: ["afternoon_snack"], mainFoodGroup: "fruit" },
-  { name: "Carote crude con salsa yogurt", mealCategories: ["afternoon_snack"], mainFoodGroup: "vegetables" }
-];
-
-async function main() {
-  for (const ingredient of ingredients) {
-    await prisma.ingredient.upsert({
-      where: { id: ingredient.id },
-      update: ingredient,
-      create: ingredient
-    });
+    const lowName = recipe.name.toLowerCase();
+    for (const ri of recipe.ingredients) {
+      const token = ri.ingredientId.split("_")[0];
+      if (["pasta", "riso", "pollo", "tonno", "uova", "yogurt"].includes(token) && !lowName.includes(token)) {
+        console.warn(`[seed:warning] Possible mismatch: ${recipe.name} includes ${ri.ingredientId}`);
+      }
+    }
   }
 
-  const createdRecipes: { id: string; name: string; mainFoodGroup: MainFoodGroup; isSideDish: boolean; mealCategories: RecipeMealCategory[] }[] = [];
+  for (const ingredient of ingredients) {
+    if (["fruit", "vegetables"].includes(ingredient.category as IngredientCategory) && ingredient.seasonWeeks.length === 0) {
+      throw new Error(`Ingredient ${ingredient.id} (${ingredient.name}) is fruit/vegetable and has no season weeks.`);
+    }
+  }
+}
+
+async function main() {
+  validateSeedData();
+
+  for (const ingredient of ingredients) {
+    await prisma.ingredient.upsert({ where: { id: ingredient.id }, update: ingredient, create: ingredient });
+  }
+
   for (const recipe of recipes) {
     const saved = await prisma.recipe.upsert({
       where: { name: recipe.name },
       update: {
         mealCategories: recipe.mealCategories,
+        recipeTags: recipe.recipeTags,
+        regionalTags: recipe.regionalTags,
         mainFoodGroup: recipe.mainFoodGroup,
-        isSideDish: recipe.isSideDish ?? false
+        prepTimeMinutes: recipe.prepTimeMinutes,
+        cookTimeMinutes: recipe.cookTimeMinutes,
+        canBePreparedDayBefore: recipe.canBePreparedDayBefore,
+        suitableForChildren: recipe.suitableForChildren,
+        isSideDish: recipe.isSideDish,
+        nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
+        steps: recipe.steps
       },
       create: {
+        id: recipe.id,
         name: recipe.name,
         mealCategories: recipe.mealCategories,
-        recipeTags: recipe.recipeTags ?? ["family_friendly", "quick"],
-        regionalTags: [],
+        recipeTags: recipe.recipeTags,
+        regionalTags: recipe.regionalTags,
         mainFoodGroup: recipe.mainFoodGroup,
-        prepTimeMinutes: 10,
-        cookTimeMinutes: 20,
-        canBePreparedDayBefore: true,
-        suitableForChildren: true,
-        isSideDish: recipe.isSideDish ?? false,
-        nutritionPerStandardPortion: { kcal: 400, proteinG: 20, carbsG: 40, fatG: 12, sugarsG: 6 },
-        steps: ["Prepare ingredients", "Cook", "Serve"]
+        prepTimeMinutes: recipe.prepTimeMinutes,
+        cookTimeMinutes: recipe.cookTimeMinutes,
+        canBePreparedDayBefore: recipe.canBePreparedDayBefore,
+        suitableForChildren: recipe.suitableForChildren,
+        isSideDish: recipe.isSideDish,
+        nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
+        steps: recipe.steps
       }
     });
-    createdRecipes.push({ id: saved.id, name: recipe.name, mainFoodGroup: recipe.mainFoodGroup, isSideDish: recipe.isSideDish ?? false, mealCategories: recipe.mealCategories });
-  }
 
-  type SeedRecipeIngredient = { ingredientId: string; quantity: number; unit: "g" | "ml" | "piece" };
-  type DeterministicIngredientRule = { includes: string[]; ingredient: SeedRecipeIngredient };
-  const deterministicIngredientRules: DeterministicIngredientRule[] = [
-    { includes: ["pasta"], ingredient: { ingredientId: "pasta", quantity: 90, unit: "g" } },
-    { includes: ["riso"], ingredient: { ingredientId: "riso", quantity: 90, unit: "g" } },
-    { includes: ["cous cous", "cereali", "muesli", "porridge"], ingredient: { ingredientId: "riso", quantity: 90, unit: "g" } },
-    { includes: ["orzo"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
-    { includes: ["farro"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
-    { includes: ["quinoa"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
-    { includes: ["latte", "budino"], ingredient: { ingredientId: "yogurt", quantity: 200, unit: "ml" } },
-    { includes: ["yogurt"], ingredient: { ingredientId: "yogurt", quantity: 150, unit: "g" } },
-    { includes: ["banana"], ingredient: { ingredientId: "banana", quantity: 1, unit: "piece" } },
-    { includes: ["mela", "apple"], ingredient: { ingredientId: "apple", quantity: 1, unit: "piece" } },
-    { includes: ["pera"], ingredient: { ingredientId: "pear", quantity: 1, unit: "piece" } },
-    { includes: ["arancia"], ingredient: { ingredientId: "orange", quantity: 1, unit: "piece" } },
-    { includes: ["frutta"], ingredient: { ingredientId: "apple", quantity: 1, unit: "piece" } },
-    { includes: ["fragola", "fragole"], ingredient: { ingredientId: "strawberries", quantity: 120, unit: "g" } },
-    { includes: ["pancake", "crepes", "muffin", "biscotti"], ingredient: { ingredientId: "pane", quantity: 70, unit: "g" } },
-    { includes: ["pane", "toast", "focaccia", "piadina", "wrap", "crackers", "crostini"], ingredient: { ingredientId: "pane", quantity: 60, unit: "g" } },
-    { includes: ["uovo", "uova", "frittata", "omelette"], ingredient: { ingredientId: "uova", quantity: 2, unit: "piece" } },
-    { includes: ["pollo", "tacchino"], ingredient: { ingredientId: "pollo", quantity: 170, unit: "g" } },
-    { includes: ["merluzzo", "orata", "salmone", "platessa", "sgombro"], ingredient: { ingredientId: "merluzzo", quantity: 160, unit: "g" } },
-    { includes: ["tonno"], ingredient: { ingredientId: "tonno", quantity: 120, unit: "g" } },
-    { includes: ["ceci", "hummus"], ingredient: { ingredientId: "ceci", quantity: 120, unit: "g" } },
-    { includes: ["lenticchie", "legumi", "fagioli"], ingredient: { ingredientId: "lenticchie", quantity: 120, unit: "g" } },
-    { includes: ["ricotta"], ingredient: { ingredientId: "ricotta", quantity: 90, unit: "g" } },
-    { includes: ["mozzarella", "formaggio", "feta", "parmigiano", "primo sale"], ingredient: { ingredientId: "mozzarella", quantity: 90, unit: "g" } },
-    { includes: ["pomodoro", "pomodorini"], ingredient: { ingredientId: "pomodoro", quantity: 120, unit: "g" } },
-    { includes: ["zucchine"], ingredient: { ingredientId: "zucchine", quantity: 130, unit: "g" } },
-    { includes: ["carote"], ingredient: { ingredientId: "carote", quantity: 110, unit: "g" } },
-    { includes: ["spinaci", "erbette", "verdure", "insalata", "lattuga", "cetriolo", "bietole", "broccoli", "melanzane", "peperoni", "cavolfiore", "rapa", "cavolo", "finocchi", "piselli", "zucca", "ratatouille"], ingredient: { ingredientId: "insalata", quantity: 90, unit: "g" } },
-    { includes: ["patate", "gnocchi"], ingredient: { ingredientId: "patate", quantity: 140, unit: "g" } }
-  ];
-
-  const buildRecipeIngredientsDeterministic = (recipeName: string): SeedRecipeIngredient[] => {
-    const lowerName = recipeName.toLowerCase();
-    const selected: SeedRecipeIngredient[] = [];
-    for (const rule of deterministicIngredientRules) {
-      if (rule.includes.some((token) => lowerName.includes(token)) && !selected.some((item) => item.ingredientId === rule.ingredient.ingredientId)) {
-        selected.push(rule.ingredient);
-      }
-    }
-    return selected;
-  };
-
-  for (const recipe of createdRecipes) {
-    const selected = buildRecipeIngredientsDeterministic(recipe.name);
-    if (selected.length === 0) {
-      console.warn(`No deterministic ingredients for recipe: ${recipe.name}`);
-      continue;
-    }
-
-    await prisma.recipeIngredient.deleteMany({ where: { recipeId: recipe.id } });
-
+    await prisma.recipeIngredient.deleteMany({ where: { recipeId: saved.id } });
     await prisma.recipeIngredient.createMany({
-      data: selected.map((item) => ({
-        recipeId: recipe.id,
-        ingredientId: item.ingredientId,
-        quantityPerStandardPortion: item.quantity,
-        unit: item.unit
-      })),
-      skipDuplicates: true
+      data: recipe.ingredients.map((ri) => ({
+        recipeId: saved.id,
+        ingredientId: ri.ingredientId,
+        quantityPerStandardPortion: ri.quantity,
+        unit: ri.unit
+      }))
     });
-
-    const selectedIngredientIds = new Set(selected.map((item) => item.ingredientId));
-    const lowerName = recipe.name.toLowerCase();
-    if (lowerName.includes("yogurt") && !selectedIngredientIds.has("yogurt")) console.warn(`[seed:recipe-ingredient-validation] ${recipe.name}: expected yogurt`);
-    if (lowerName.includes("banana") && !selectedIngredientIds.has("banana")) console.warn(`[seed:recipe-ingredient-validation] ${recipe.name}: expected banana`);
-    if (lowerName.includes("pasta") && !selectedIngredientIds.has("pasta")) console.warn(`[seed:recipe-ingredient-validation] ${recipe.name}: expected pasta`);
   }
 }
 
-main().finally(() => prisma.$disconnect());
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => prisma.$disconnect());
