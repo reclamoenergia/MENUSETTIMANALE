@@ -1,5 +1,7 @@
 import React from "react";
 
+import { getPortionLabel } from "@/lib/menu-generation/portionCalculator";
+
 export type GeneratedMeal = {
   mealType: "breakfast" | "lunch" | "afternoon_snack" | "dinner" | "morning_snack";
   recipes: string[];
@@ -25,9 +27,10 @@ const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
 const mealRowOrder: GeneratedMeal["mealType"][] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
 
 function portionLabel(multiplier: number): string {
-  if (multiplier <= 0.85) return "Small portion";
-  if (multiplier < 1.15) return "Medium portion";
-  return "Large portion";
+  const label = getPortionLabel(multiplier);
+  if (label === "small") return "Small portion";
+  if (label === "large") return "Large portion";
+  return "Medium portion";
 }
 
 export function WeeklyMenuTable({ generatedMenu }: { generatedMenu: WeeklyDayMenu[] }) {
