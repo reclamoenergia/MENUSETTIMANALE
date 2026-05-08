@@ -249,51 +249,64 @@ async function main() {
 
   await prisma.recipeIngredient.deleteMany({});
 
-  const ingredientByGroup: Record<MainFoodGroup, Array<{ ingredientId: string; quantity: number; unit: "g" | "ml" | "piece" }>> = {
-    cereals: [{ ingredientId: "pasta", quantity: 90, unit: "g" }, { ingredientId: "pomodoro", quantity: 120, unit: "g" }, { ingredientId: "zucchine", quantity: 120, unit: "g" }],
-    legumes: [{ ingredientId: "ceci", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 100, unit: "g" }, { ingredientId: "pane", quantity: 60, unit: "g" }],
-    fish: [{ ingredientId: "merluzzo", quantity: 160, unit: "g" }, { ingredientId: "patate", quantity: 150, unit: "g" }, { ingredientId: "zucchine", quantity: 100, unit: "g" }],
-    eggs: [{ ingredientId: "uova", quantity: 2, unit: "piece" }, { ingredientId: "patate", quantity: 120, unit: "g" }, { ingredientId: "insalata", quantity: 80, unit: "g" }],
-    cheese: [{ ingredientId: "mozzarella", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 120, unit: "g" }, { ingredientId: "pane", quantity: 70, unit: "g" }],
-    vegetarian: [{ ingredientId: "zucchine", quantity: 150, unit: "g" }, { ingredientId: "carote", quantity: 100, unit: "g" }, { ingredientId: "pane", quantity: 60, unit: "g" }],
-    white_meat: [{ ingredientId: "pollo", quantity: 170, unit: "g" }, { ingredientId: "patate", quantity: 150, unit: "g" }, { ingredientId: "insalata", quantity: 80, unit: "g" }],
-    vegetables: [{ ingredientId: "zucchine", quantity: 160, unit: "g" }, { ingredientId: "carote", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 100, unit: "g" }],
-    fruit: [{ ingredientId: "apple", quantity: 1, unit: "piece" }, { ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
-    snack: [{ ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "banana", quantity: 1, unit: "piece" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
-    red_meat: [{ ingredientId: "pollo", quantity: 0, unit: "g" }]
+  type SeedRecipeIngredient = { ingredientId: string; quantity: number; unit: "g" | "ml" | "piece" };
+
+  const buildRecipeIngredientsFromName = (recipeName: string, mainFoodGroup: MainFoodGroup): SeedRecipeIngredient[] => {
+    const name = recipeName.toLowerCase();
+    const selected: SeedRecipeIngredient[] = [];
+    const add = (ingredientId: string, quantity: number, unit: "g" | "ml" | "piece") => {
+      if (!selected.some((item) => item.ingredientId === ingredientId)) selected.push({ ingredientId, quantity, unit });
+    };
+
+    if (name.includes("pasta")) add("pasta", 90, "g");
+    if (name.includes("riso")) add("riso", 90, "g");
+    if (name.includes("cous cous")) add("riso", 90, "g");
+    if (name.includes("orzo") || name.includes("farro") || name.includes("quinoa") || name.includes("muesli") || name.includes("cereali") || name.includes("porridge")) add("riso", 80, "g");
+    if (name.includes("pane") || name.includes("toast") || name.includes("focaccia") || name.includes("piadina") || name.includes("wrap") || name.includes("crostini") || name.includes("crackers")) add("pane", 60, "g");
+
+    if (name.includes("uovo") || name.includes("uova") || name.includes("frittata") || name.includes("omelette")) add("uova", 2, "piece");
+    if (name.includes("pollo") || name.includes("tacchino")) add("pollo", 170, "g");
+    if (name.includes("merluzzo") || name.includes("orata") || name.includes("salmone") || name.includes("platessa") || name.includes("sgombro") || name.includes("tonno")) add(name.includes("tonno") ? "tonno" : "merluzzo", 160, "g");
+    if (name.includes("ceci") || name.includes("hummus")) add("ceci", 120, "g");
+    if (name.includes("lenticchie") || name.includes("legumi") || name.includes("fagioli")) add("lenticchie", 120, "g");
+
+    if (name.includes("yogurt")) add("yogurt", 125, "g");
+    if (name.includes("ricotta")) add("ricotta", 90, "g");
+    if (name.includes("mozzarella") || name.includes("formaggio") || name.includes("feta") || name.includes("parmigiano") || name.includes("primo sale")) add("mozzarella", 90, "g");
+
+    if (name.includes("pomodoro") || name.includes("pomodorini")) add("pomodoro", 120, "g");
+    if (name.includes("zucchine")) add("zucchine", 130, "g");
+    if (name.includes("carote")) add("carote", 110, "g");
+    if (name.includes("spinaci") || name.includes("erbette") || name.includes("verdure") || name.includes("insalata") || name.includes("lattuga") || name.includes("cetriolo") || name.includes("bietole") || name.includes("broccoli") || name.includes("melanzane") || name.includes("peperoni") || name.includes("cavolfiore") || name.includes("rapa") || name.includes("cavolo")) add("insalata", 90, "g");
+    if (name.includes("patate") || name.includes("gnocchi")) add("patate", 140, "g");
+
+    if (name.includes("frutta") || name.includes("mela") || name.includes("pera") || name.includes("banana") || name.includes("arancia") || name.includes("fragola")) add(name.includes("pera") ? "pear" : name.includes("banana") ? "banana" : "apple", 1, "piece");
+    if (name.includes("miele")) add("apple", 1, "piece");
+
+    if (selected.length === 0) {
+      if (mainFoodGroup === "eggs") add("uova", 2, "piece");
+      else if (mainFoodGroup === "fish") add("merluzzo", 160, "g");
+      else if (mainFoodGroup === "white_meat") add("pollo", 170, "g");
+      else if (mainFoodGroup === "legumes") add("ceci", 120, "g");
+      else if (mainFoodGroup === "cheese") add("ricotta", 90, "g");
+      else if (mainFoodGroup === "fruit") add("apple", 1, "piece");
+      else add("zucchine", 120, "g");
+    }
+
+    return selected;
   };
 
+  const suspiciousRules: Array<{ test: RegExp; forbidden: string[]; reason: string }> = [
+    { test: /yogurt/, forbidden: ["patate", "insalata"], reason: "yogurt recipe with potato/salad" },
+    { test: /(breakfast|colazione|yogurt|toast|pane|latte|muesli|porridge|pancake|crepes|uovo strapazzato)/, forbidden: ["patate", "insalata"], reason: "breakfast-like recipe with potato/salad" },
+    { test: /(frutta|banana|mela|pera|arancia|fragola)/, forbidden: ["pane"], reason: "fruit snack with bread" }
+  ];
+
   for (const recipe of createdRecipes) {
-    const base = recipe.isSideDish
-      ? [{ ingredientId: "zucchine", quantity: 150, unit: "g" as const }, { ingredientId: "pomodoro", quantity: 80, unit: "g" as const }]
-      : (ingredientByGroup[recipe.mainFoodGroup] ?? ingredientByGroup.vegetarian).slice(0, 3);
-    const extras = recipe.mealCategories.includes("breakfast") || recipe.mealCategories.includes("morning_snack") || recipe.mealCategories.includes("afternoon_snack")
-      ? [{ ingredientId: "apple", quantity: 1, unit: "piece" as const }, { ingredientId: "yogurt", quantity: 100, unit: "g" as const }]
-      : [{ ingredientId: "pane", quantity: 40, unit: "g" as const }, { ingredientId: "insalata", quantity: 70, unit: "g" as const }];
-    const selected = [...base, ...extras].slice(0, Math.min(recipe.isSideDish ? 2 : 5, 5));
-
-    const deduplicatedByIngredientId = Array.from(
-      selected.reduce(
-        (acc, item) => {
-          const existing = acc.get(item.ingredientId);
-          if (!existing) {
-            acc.set(item.ingredientId, { ...item });
-            return acc;
-          }
-
-          acc.set(item.ingredientId, {
-            ...existing,
-            quantity: existing.quantity + item.quantity
-          });
-
-          return acc;
-        },
-        new Map<string, (typeof selected)[number]>()
-      ).values()
-    );
+    const selected = buildRecipeIngredientsFromName(recipe.name, recipe.mainFoodGroup);
 
     await prisma.recipeIngredient.createMany({
-      data: deduplicatedByIngredientId.map((item) => ({
+      data: selected.map((item) => ({
         recipeId: recipe.id,
         ingredientId: item.ingredientId,
         quantityPerStandardPortion: item.quantity,
@@ -301,6 +314,15 @@ async function main() {
       })),
       skipDuplicates: true
     });
+
+    const lowerName = recipe.name.toLowerCase();
+    for (const rule of suspiciousRules) {
+      if (!rule.test.test(lowerName)) continue;
+      const invalid = selected.filter((item) => rule.forbidden.includes(item.ingredientId)).map((item) => item.ingredientId);
+      if (invalid.length > 0) {
+        console.warn(`[seed:recipe-ingredient-validation] ${recipe.name}: ${rule.reason} (${invalid.join(", ")})`);
+      }
+    }
   }
 }
 

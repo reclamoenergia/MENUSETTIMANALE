@@ -67,6 +67,7 @@ export function WeeklyMenuTable({
                   return (
                     <td key={`${day.day}-${mealType}`} className="border p-1.5 align-top">
                       <select className="w-full rounded border p-1 text-xs font-medium" value={meal.recipes[0]} onChange={(e) => onReplaceRecipe(day.day, mealType, e.target.value)}>
+                        {!recipeByName.has(meal.recipes[0]) ? <option value={meal.recipes[0]}>{meal.recipes[0]}</option> : null}
                         {recipeOptions
                           .filter((recipe) => recipe.mealCategories.includes(mealType))
                           .map((recipe) => <option key={`${day.day}-${mealType}-${recipe.name}`} value={recipe.name}>{recipe.name}</option>)}
@@ -77,16 +78,16 @@ export function WeeklyMenuTable({
                             <span className="font-medium">{portion.personName}:</span>{" "}
                             {(() => {
                               const recipe = recipeByName.get(meal.recipes[0]);
-                              if (!recipe) return "Ingredient details unavailable";
+                              if (!recipe) return "portion details unavailable";
                               const details = buildRecipePortionIngredients({
                                 recipeName: recipe.name,
                                 ingredients: recipe.ingredients,
                                 multiplier: portion.multiplier,
                                 onMissingIngredients: (recipeName) => {
-                                  console.warn(`Ingredient details unavailable for recipe: ${recipeName}`);
+                                  console.warn(`Portion details unavailable for recipe: ${recipeName}`);
                                 }
                               });
-                              if (details.length === 0) return "Ingredient details unavailable";
+                              if (details.length === 0) return "portion details unavailable";
                               return details
                                 .map((ingredient) => `${ingredient.ingredientName} ${ingredient.unit === "piece" ? Math.max(1, Math.round(ingredient.quantity)) : Math.round(ingredient.quantity)} ${ingredient.unit}`)
                                 .join(", ");
