@@ -252,16 +252,19 @@ async function main() {
   const deterministicIngredientRules: DeterministicIngredientRule[] = [
     { includes: ["pasta"], ingredient: { ingredientId: "pasta", quantity: 90, unit: "g" } },
     { includes: ["riso"], ingredient: { ingredientId: "riso", quantity: 90, unit: "g" } },
-    { includes: ["cous cous"], ingredient: { ingredientId: "riso", quantity: 90, unit: "g" } },
+    { includes: ["cous cous", "cereali", "muesli", "porridge"], ingredient: { ingredientId: "riso", quantity: 90, unit: "g" } },
     { includes: ["orzo"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
     { includes: ["farro"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
     { includes: ["quinoa"], ingredient: { ingredientId: "riso", quantity: 80, unit: "g" } },
+    { includes: ["latte", "budino"], ingredient: { ingredientId: "yogurt", quantity: 200, unit: "ml" } },
     { includes: ["yogurt"], ingredient: { ingredientId: "yogurt", quantity: 150, unit: "g" } },
     { includes: ["banana"], ingredient: { ingredientId: "banana", quantity: 1, unit: "piece" } },
     { includes: ["mela", "apple"], ingredient: { ingredientId: "apple", quantity: 1, unit: "piece" } },
     { includes: ["pera"], ingredient: { ingredientId: "pear", quantity: 1, unit: "piece" } },
     { includes: ["arancia"], ingredient: { ingredientId: "orange", quantity: 1, unit: "piece" } },
+    { includes: ["frutta"], ingredient: { ingredientId: "apple", quantity: 1, unit: "piece" } },
     { includes: ["fragola", "fragole"], ingredient: { ingredientId: "strawberries", quantity: 120, unit: "g" } },
+    { includes: ["pancake", "crepes", "muffin", "biscotti"], ingredient: { ingredientId: "pane", quantity: 70, unit: "g" } },
     { includes: ["pane", "toast", "focaccia", "piadina", "wrap", "crackers", "crostini"], ingredient: { ingredientId: "pane", quantity: 60, unit: "g" } },
     { includes: ["uovo", "uova", "frittata", "omelette"], ingredient: { ingredientId: "uova", quantity: 2, unit: "piece" } },
     { includes: ["pollo", "tacchino"], ingredient: { ingredientId: "pollo", quantity: 170, unit: "g" } },
@@ -274,7 +277,7 @@ async function main() {
     { includes: ["pomodoro", "pomodorini"], ingredient: { ingredientId: "pomodoro", quantity: 120, unit: "g" } },
     { includes: ["zucchine"], ingredient: { ingredientId: "zucchine", quantity: 130, unit: "g" } },
     { includes: ["carote"], ingredient: { ingredientId: "carote", quantity: 110, unit: "g" } },
-    { includes: ["spinaci", "erbette", "verdure", "insalata", "lattuga", "cetriolo", "bietole", "broccoli", "melanzane", "peperoni", "cavolfiore", "rapa", "cavolo"], ingredient: { ingredientId: "insalata", quantity: 90, unit: "g" } },
+    { includes: ["spinaci", "erbette", "verdure", "insalata", "lattuga", "cetriolo", "bietole", "broccoli", "melanzane", "peperoni", "cavolfiore", "rapa", "cavolo", "finocchi", "piselli", "zucca", "ratatouille"], ingredient: { ingredientId: "insalata", quantity: 90, unit: "g" } },
     { includes: ["patate", "gnocchi"], ingredient: { ingredientId: "patate", quantity: 140, unit: "g" } }
   ];
 
@@ -291,6 +294,11 @@ async function main() {
 
   for (const recipe of createdRecipes) {
     const selected = buildRecipeIngredientsDeterministic(recipe.name);
+    if (selected.length === 0) {
+      console.warn(`No deterministic ingredients for recipe: ${recipe.name}`);
+      continue;
+    }
+
     await prisma.recipeIngredient.deleteMany({ where: { recipeId: recipe.id } });
 
     await prisma.recipeIngredient.createMany({
