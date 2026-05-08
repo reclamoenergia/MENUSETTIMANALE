@@ -26,12 +26,11 @@ const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
 
 const mealRowOrder: GeneratedMeal["mealType"][] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
 
-function portionLabel(multiplier: number): string {
-  const label = getPortionLabel(multiplier);
-  if (label === "small") return "Small portion";
-  if (label === "large") return "Large portion";
-  return "Medium portion";
-}
+const portionLabelText: Record<ReturnType<typeof getPortionLabel>, string> = {
+  small: "Small portion",
+  medium: "Medium portion",
+  large: "Large portion"
+};
 
 export function WeeklyMenuTable({ generatedMenu }: { generatedMenu: WeeklyDayMenu[] }) {
   return (
@@ -64,7 +63,7 @@ export function WeeklyMenuTable({ generatedMenu }: { generatedMenu: WeeklyDayMen
                           <div key={`${day.day}-${mealType}-${portion.personId}`}>
                             <p className="font-medium">{portion.personName}:</p>
                             <ul className="list-disc pl-5 text-slate-700">
-                              <li>{portionLabel(portion.multiplier)}</li>
+                              <li>{portionLabelText[getPortionLabel(portion.multiplier)]}</li>
                               <li>{Math.round(portion.estimatedCalories)} kcal estimate</li>
                             </ul>
                           </div>
