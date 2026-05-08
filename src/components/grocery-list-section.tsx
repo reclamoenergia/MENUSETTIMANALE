@@ -2,7 +2,7 @@ import React from "react";
 
 type GroceryListGroup = {
   category: string;
-  items: { ingredientId: string; ingredientName: string; displayQuantity: string }[];
+  items: { ingredientId: string; ingredientName: string; unit: string; displayQuantity: string }[];
 };
 
 type GroceryListData = {
@@ -46,7 +46,7 @@ export function GroceryListSection({ groceryList, menuHasRecipes }: { groceryLis
             <h3 className="font-medium">{categoryLabel(group.category)}</h3>
             <ul className="mt-1 space-y-1 text-sm">
               {group.items.map((item) => (
-                <li key={item.ingredientId}>- {item.ingredientName} — {item.displayQuantity}</li>
+                <li key={`${item.ingredientId}-${item.unit}`}>- {item.ingredientName} — {item.displayQuantity}</li>
               ))}
             </ul>
           </div>
