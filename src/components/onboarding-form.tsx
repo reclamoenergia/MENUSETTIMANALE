@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { MainFoodGroup } from "@prisma/client";
+import { IngredientCategory, MainFoodGroup } from "@prisma/client";
+import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
 import { GroceryListSection } from "@/components/grocery-list-section";
 import { WeeklyMenuTable, type GeneratedMeal } from "@/components/weekly-menu-table";
 
@@ -75,7 +76,7 @@ export function OnboardingForm() {
   const [savedOnboarding, setSavedOnboarding] = useState<{ household: { id: string; name: string }; persons: SavedPerson[] } | null>(null);
   const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
   const [groceryList, setGroceryList] = useState<{ groups: { category: string; items: { ingredientId: string; ingredientName: string; unit: string; displayQuantity: string }[] }[]; warnings: string[] } | null>(null);
-  const [recipeOptions, setRecipeOptions] = useState<{ name: string; mealCategories: string[]; mainFoodGroup: string; ingredients: { ingredientId: string; ingredientName: string; quantityPerStandardPortion: number; unit: string }[] }[]>([]);
+  const [recipeOptions, setRecipeOptions] = useState<{ name: string; mealCategories: string[]; mainFoodGroup: string; ingredients: { ingredientId: string; ingredientName: string; quantityPerStandardPortion: number; unit: "g" | "ml" | "piece"; category?: IngredientCategory }[] }[]>([]);
   const [menuConfirmed, setMenuConfirmed] = useState(false);
 
   const [step, setStep] = useState(1);
@@ -166,20 +167,40 @@ export function OnboardingForm() {
   };
   const rebuildGrocery = (nextMenu: { day: string; meals: GeneratedMeal[] }[]) => {
     const map = new Map<string, { ingredientId: string; ingredientName: string; unit: string; quantity: number; category: string }>();
+    const missingIngredientsForRecipes = new Set<string>();
     const byName = new Map(recipeOptions.map((r) => [r.name, r]));
-    for (const day of nextMenu) for (const meal of day.meals) for (const recipeName of meal.recipes) {
-      const recipe = byName.get(recipeName);
-      if (!recipe || recipe.ingredients.length === 0) continue;
-      for (const ing of recipe.ingredients) {
+
+    for (const day of nextMenu) {
+      for (const meal of day.meals) {
         const totalMultiplier = meal.portions.reduce((sum, p) => sum + p.multiplier, 0);
-        const key = `${ing.ingredientId}:${ing.unit}`;
-        const existing = map.get(key);
-        const qty = ing.quantityPerStandardPortion * totalMultiplier;
-        if (existing) existing.quantity += qty; else map.set(key, { ingredientId: ing.ingredientId, ingredientName: ing.ingredientName, unit: ing.unit, quantity: qty, category: "other" });
+        for (const recipeName of meal.recipes) {
+          const recipe = byName.get(recipeName);
+          if (!recipe) continue;
+          const scaledIngredients = buildRecipePortionIngredients({
+            recipeName,
+            ingredients: recipe.ingredients,
+            multiplier: totalMultiplier,
+            onMissingIngredients: (name) => {
+              missingIngredientsForRecipes.add(name);
+              console.warn(`Ingredient details unavailable for recipe: ${name}`);
+            }
+          });
+
+          for (const ing of scaledIngredients) {
+            const key = `${ing.ingredientId}:${ing.unit}`;
+            const existing = map.get(key);
+            if (existing) existing.quantity += ing.quantity;
+            else map.set(key, { ingredientId: ing.ingredientId, ingredientName: ing.ingredientName, unit: ing.unit, quantity: ing.quantity, category: "other" });
+          }
+        }
       }
     }
+
     const items = Array.from(map.values()).map((i) => ({ ingredientId: i.ingredientId, ingredientName: i.ingredientName, unit: i.unit, displayQuantity: i.unit === "piece" ? `${Math.ceil(i.quantity)} pieces` : `${Math.round(i.quantity)} ${i.unit}` }));
-    setGroceryList({ groups: [{ category: "other", items }], warnings: [] });
+    setGroceryList({
+      groups: [{ category: "other", items }],
+      warnings: missingIngredientsForRecipes.size > 0 ? [`Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`] : []
+    });
   };
   const onReplaceRecipe = (dayName: string, mealType: GeneratedMeal["mealType"], recipeName: string) => {
     if (!generatedMenu) return;

@@ -1,4 +1,5 @@
 import { IngredientCategory, Prisma, Unit } from "@prisma/client";
+import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
 
 type RecipeWithIngredients = Prisma.RecipeGetPayload<{ include: { ingredients: { include: { ingredient: true } } } }>;
 
@@ -127,27 +128,35 @@ export function generateGroceryList(params: {
       for (const recipeName of meal.recipes) {
         const recipe = recipesByName.get(recipeName);
         if (!recipe) continue;
-        if (recipe.ingredients.length === 0) {
-          missingIngredientsForRecipes.add(recipe.name);
-          continue;
-        }
 
-        for (const recipeIngredient of recipe.ingredients) {
-          const key = `${recipeIngredient.ingredientId}:${recipeIngredient.unit}`;
+        const scaledIngredients = buildRecipePortionIngredients({
+          recipeName: recipe.name,
+          ingredients: recipe.ingredients.map((recipeIngredient) => ({
+            ingredientId: recipeIngredient.ingredientId,
+            ingredientName: recipeIngredient.ingredient.name,
+            quantityPerStandardPortion: recipeIngredient.quantityPerStandardPortion,
+            unit: recipeIngredient.unit,
+            category: recipeIngredient.ingredient.category
+          })),
+          multiplier: totalMultiplier,
+          onMissingIngredients: (name) => missingIngredientsForRecipes.add(name)
+        });
+
+        for (const ingredient of scaledIngredients) {
+          const key = `${ingredient.ingredientId}:${ingredient.unit}`;
           const existing = aggregated.get(key);
-          const additionalQuantity = recipeIngredient.quantityPerStandardPortion * totalMultiplier;
 
           if (existing) {
-            existing.quantity += additionalQuantity;
+            existing.quantity += ingredient.quantity;
             continue;
           }
 
           aggregated.set(key, {
-            ingredientId: recipeIngredient.ingredientId,
-            ingredientName: recipeIngredient.ingredient.name,
-            category: mapIngredientCategory(recipeIngredient.ingredient.category),
-            unit: recipeIngredient.unit,
-            quantity: additionalQuantity
+            ingredientId: ingredient.ingredientId,
+            ingredientName: ingredient.ingredientName,
+            category: mapIngredientCategory(ingredient.category ?? "other"),
+            unit: ingredient.unit,
+            quantity: ingredient.quantity
           });
         }
       }

@@ -1,4 +1,6 @@
 import React from "react";
+import { IngredientCategory } from "@prisma/client";
+import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
 
 export type GeneratedMeal = {
   mealType: "breakfast" | "lunch" | "afternoon_snack" | "dinner" | "morning_snack";
@@ -15,7 +17,7 @@ type RecipeOption = {
   name: string;
   mealCategories: string[];
   mainFoodGroup: string;
-  ingredients: { ingredientName: string; quantityPerStandardPortion: number; unit: string }[];
+  ingredients: { ingredientId: string; ingredientName: string; quantityPerStandardPortion: number; unit: "g" | "ml" | "piece"; category?: IngredientCategory }[];
 };
 
 type WeeklyDayMenu = { day: string; meals: GeneratedMeal[] };
@@ -73,7 +75,22 @@ export function WeeklyMenuTable({
                         {meal.portions.map((portion) => (
                           <div key={`${day.day}-${mealType}-${portion.personId}`} className="text-[11px] text-slate-700">
                             <span className="font-medium">{portion.personName}:</span>{" "}
-                            {((recipeByName.get(meal.recipes[0])?.ingredients ?? []).slice(0, 3)).map((ingredient) => `${ingredient.ingredientName} ${ingredient.unit === "piece" ? Math.max(1, Math.round(ingredient.quantityPerStandardPortion * portion.multiplier)) : Math.round(ingredient.quantityPerStandardPortion * portion.multiplier)} ${ingredient.unit}`).join(", ")}
+                            {(() => {
+                              const recipe = recipeByName.get(meal.recipes[0]);
+                              if (!recipe) return "Ingredient details unavailable";
+                              const details = buildRecipePortionIngredients({
+                                recipeName: recipe.name,
+                                ingredients: recipe.ingredients,
+                                multiplier: portion.multiplier,
+                                onMissingIngredients: (recipeName) => {
+                                  console.warn(`Ingredient details unavailable for recipe: ${recipeName}`);
+                                }
+                              });
+                              if (details.length === 0) return "Ingredient details unavailable";
+                              return details
+                                .map((ingredient) => `${ingredient.ingredientName} ${ingredient.unit === "piece" ? Math.max(1, Math.round(ingredient.quantity)) : Math.round(ingredient.quantity)} ${ingredient.unit}`)
+                                .join(", ");
+                            })()}
                           </div>
                         ))}
                       </div>
