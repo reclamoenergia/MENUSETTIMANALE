@@ -49,5 +49,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
+  if (groceryList.warnings.length > 0) {
+    console.warn("Missing recipe ingredient data for grocery list:", groceryList.warnings.join(" | "));
+  }
+
   return NextResponse.json({ ...menu, groceryList });
 }
