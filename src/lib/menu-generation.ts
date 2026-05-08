@@ -20,9 +20,21 @@ type RecipeWithIngredients = Prisma.RecipeGetPayload<{ include: { ingredients: {
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 const snackSuggestionPool = {
-  breakfast: ["Yogurt + seasonal fruit", "Milk + whole-grain bread", "Ricotta + bread + fruit"],
-  afternoon_snack: ["Seasonal fruit + nuts", "Yogurt + fruit", "Bread + olive oil + tomato"]
+  breakfast: ["Yogurt + {fruit}", "Milk + whole-grain bread", "Ricotta + bread + {fruit}"],
+  morning_snack: ["{fruit}", "Yogurt + {fruit}", "Bread + ricotta + {fruit}"],
+  afternoon_snack: ["{fruit} + nuts", "Yogurt + {fruit}", "Bread + olive oil + tomato"]
 } as const;
+const seasonalFruitCatalog: { name: string; seasonWeeks: number[] }[] = [
+  { name: "apple", seasonWeeks: [1,2,3,4,5,6,7,8,9,10,40,41,42,43,44,45,46,47,48,49,50,51,52] },
+  { name: "banana", seasonWeeks: Array.from({ length: 52 }, (_, i) => i + 1) },
+  { name: "pear", seasonWeeks: [1,2,3,4,5,6,7,8,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52] },
+  { name: "peach", seasonWeeks: [23,24,25,26,27,28,29,30,31,32,33,34,35] }
+];
+const pickSeasonalFruit = (weekNumber: number, dayIndex: number) => {
+  const seasonal = seasonalFruitCatalog.filter((fruit) => fruit.seasonWeeks.includes(weekNumber));
+  const pool = seasonal.length > 0 ? seasonal : seasonalFruitCatalog.filter((item) => item.name === "apple" || item.name === "banana");
+  return pool[dayIndex % pool.length]?.name ?? "banana";
+};
 
 type WeeklyBalanceSlot = { dayKey: string; mealType: "lunch" | "dinner"; mainFoodGroup: MainFoodGroup };
 
@@ -86,8 +98,17 @@ export function generateWeeklyMenu(params: {
       if (mode === "recipes" && breakfastRecipes.length > 0) {
         composed.unshift({ mealType: "breakfast", recipes: [breakfastRecipes[dayIndex % breakfastRecipes.length].name], portions: buildPortions({ mealType: "breakfast", selectedRecipes: [breakfastRecipes[dayIndex % breakfastRecipes.length]], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
       } else {
-        composed.unshift({ mealType: "breakfast", recipes: [snackSuggestionPool.breakfast[dayIndex % snackSuggestionPool.breakfast.length]], portions: buildSimpleSuggestionPortions({ mealType: "breakfast", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
+        const fruit = pickSeasonalFruit(params.weekNumber, dayIndex);
+        composed.unshift({ mealType: "breakfast", recipes: [snackSuggestionPool.breakfast[dayIndex % snackSuggestionPool.breakfast.length].replaceAll("{fruit}", fruit)], portions: buildSimpleSuggestionPortions({ mealType: "breakfast", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
       }
+    }
+    if (params.persons.some((p) => p.defaultManagedMeals.includes("morning_snack"))) {
+      const fruit = pickSeasonalFruit(params.weekNumber, dayIndex);
+      composed.push({
+        mealType: "morning_snack",
+        recipes: [snackSuggestionPool.morning_snack[dayIndex % snackSuggestionPool.morning_snack.length].replaceAll("{fruit}", fruit)],
+        portions: buildSimpleSuggestionPortions({ mealType: "morning_snack", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution })
+      });
     }
 
     if (params.persons.some((p) => p.defaultManagedMeals.includes("afternoon_snack"))) {

@@ -30,7 +30,18 @@ const ingredients: SeedIngredient[] = [
   { id: "pomodoro", name: "Pomodoro", category: "vegetables", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40], hasFrozenOption: true },
   { id: "insalata", name: "Insalata", category: "vegetables", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42], hasFrozenOption: false },
   { id: "patate", name: "Patate", category: "vegetables", storageType: "pantry", shelfLifeDays: 30, recommendedPurchaseLeadDays: 5, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
-  { id: "frutta_stagione", name: "Frutta di stagione", category: "fruit", storageType: "fridge", shelfLifeDays: 6, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: allWeeks, hasFrozenOption: false },
+  { id: "banana", name: "Banana", category: "fruit", storageType: "pantry", shelfLifeDays: 5, recommendedPurchaseLeadDays: 2, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
+  { id: "apple", name: "Apple", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
+  { id: "pear", name: "Pear", category: "fruit", storageType: "fridge", shelfLifeDays: 8, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
+  { id: "peach", name: "Peach", category: "fruit", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [23,24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
+  { id: "apricot", name: "Apricot", category: "fruit", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [20,21,22,23,24,25,26,27,28], hasFrozenOption: false },
+  { id: "orange", name: "Orange", category: "fruit", storageType: "fridge", shelfLifeDays: 12, recommendedPurchaseLeadDays: 3, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,45,46,47,48,49,50,51,52], hasFrozenOption: false },
+  { id: "mandarin", name: "Mandarin", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,44,45,46,47,48,49,50,51,52], hasFrozenOption: false },
+  { id: "grapes", name: "Grapes", category: "fruit", storageType: "fridge", shelfLifeDays: 7, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [31,32,33,34,35,36,37,38,39,40,41], hasFrozenOption: false },
+  { id: "strawberries", name: "Strawberries", category: "fruit", storageType: "fridge", shelfLifeDays: 4, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [14,15,16,17,18,19,20,21,22,23,24,25], hasFrozenOption: false },
+  { id: "kiwi", name: "Kiwi", category: "fruit", storageType: "fridge", shelfLifeDays: 10, recommendedPurchaseLeadDays: 2, isSeasonal: true, seasonWeeks: [1,2,3,4,5,6,7,8,9,10,11,12,45,46,47,48,49,50,51,52], hasFrozenOption: false },
+  { id: "melon", name: "Melon", category: "fruit", storageType: "fridge", shelfLifeDays: 6, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [22,23,24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
+  { id: "watermelon", name: "Watermelon", category: "fruit", storageType: "fridge", shelfLifeDays: 5, recommendedPurchaseLeadDays: 1, isSeasonal: true, seasonWeeks: [24,25,26,27,28,29,30,31,32,33,34,35], hasFrozenOption: false },
   { id: "ceci", name: "Ceci", category: "legumes", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
   { id: "lenticchie", name: "Lenticchie", category: "legumes", storageType: "pantry", shelfLifeDays: 365, recommendedPurchaseLeadDays: 7, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: false },
   { id: "pollo", name: "Pollo", category: "meat", storageType: "fridge", shelfLifeDays: 2, recommendedPurchaseLeadDays: 1, isSeasonal: false, seasonWeeks: allWeeks, hasFrozenOption: true },
@@ -247,8 +258,8 @@ async function main() {
     vegetarian: [{ ingredientId: "zucchine", quantity: 150, unit: "g" }, { ingredientId: "carote", quantity: 100, unit: "g" }, { ingredientId: "pane", quantity: 60, unit: "g" }],
     white_meat: [{ ingredientId: "pollo", quantity: 170, unit: "g" }, { ingredientId: "patate", quantity: 150, unit: "g" }, { ingredientId: "insalata", quantity: 80, unit: "g" }],
     vegetables: [{ ingredientId: "zucchine", quantity: 160, unit: "g" }, { ingredientId: "carote", quantity: 120, unit: "g" }, { ingredientId: "pomodoro", quantity: 100, unit: "g" }],
-    fruit: [{ ingredientId: "frutta_stagione", quantity: 180, unit: "g" }, { ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
-    snack: [{ ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "frutta_stagione", quantity: 150, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
+    fruit: [{ ingredientId: "apple", quantity: 1, unit: "piece" }, { ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
+    snack: [{ ingredientId: "yogurt", quantity: 125, unit: "g" }, { ingredientId: "banana", quantity: 1, unit: "piece" }, { ingredientId: "pane", quantity: 40, unit: "g" }],
     red_meat: [{ ingredientId: "pollo", quantity: 0, unit: "g" }]
   };
 
@@ -257,7 +268,7 @@ async function main() {
       ? [{ ingredientId: "zucchine", quantity: 150, unit: "g" as const }, { ingredientId: "pomodoro", quantity: 80, unit: "g" as const }]
       : (ingredientByGroup[recipe.mainFoodGroup] ?? ingredientByGroup.vegetarian).slice(0, 3);
     const extras = recipe.mealCategories.includes("breakfast") || recipe.mealCategories.includes("morning_snack") || recipe.mealCategories.includes("afternoon_snack")
-      ? [{ ingredientId: "frutta_stagione", quantity: 120, unit: "g" as const }, { ingredientId: "yogurt", quantity: 100, unit: "g" as const }]
+      ? [{ ingredientId: "apple", quantity: 1, unit: "piece" as const }, { ingredientId: "yogurt", quantity: 100, unit: "g" as const }]
       : [{ ingredientId: "pane", quantity: 40, unit: "g" as const }, { ingredientId: "insalata", quantity: 70, unit: "g" as const }];
     const selected = [...base, ...extras].slice(0, Math.min(recipe.isSideDish ? 2 : 5, 5));
 

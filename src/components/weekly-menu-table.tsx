@@ -1,7 +1,5 @@
 import React from "react";
 
-import { getPortionLabel } from "@/lib/menu-generation/portionCalculator";
-
 export type GeneratedMeal = {
   mealType: "breakfast" | "lunch" | "afternoon_snack" | "dinner" | "morning_snack";
   recipes: string[];
@@ -12,6 +10,12 @@ export type GeneratedMeal = {
     multiplier: number;
     estimatedCalories: number;
   }[];
+};
+type RecipeOption = {
+  name: string;
+  mealCategories: string[];
+  mainFoodGroup: string;
+  ingredients: { ingredientName: string; quantityPerStandardPortion: number; unit: string }[];
 };
 
 type WeeklyDayMenu = { day: string; meals: GeneratedMeal[] };
@@ -26,18 +30,21 @@ const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
 
 const mealRowOrder: GeneratedMeal["mealType"][] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
 
-const portionLabelText: Record<ReturnType<typeof getPortionLabel>, string> = {
-  small: "Small portion",
-  medium: "Medium portion",
-  large: "Large portion"
-};
-
-export function WeeklyMenuTable({ generatedMenu }: { generatedMenu: WeeklyDayMenu[] }) {
+export function WeeklyMenuTable({
+  generatedMenu,
+  recipeOptions,
+  onReplaceRecipe
+}: {
+  generatedMenu: WeeklyDayMenu[];
+  recipeOptions: RecipeOption[];
+  onReplaceRecipe: (day: string, mealType: GeneratedMeal["mealType"], recipeName: string) => void;
+}) {
+  const recipeByName = new Map(recipeOptions.map((recipe) => [recipe.name, recipe]));
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Generated menu</h2>
       <div className="overflow-x-auto">
-        <table className="min-w-[1000px] w-full border-collapse text-sm">
+        <table className="min-w-[1100px] w-full border-collapse text-xs">
           <thead>
             <tr>
               <th className="border bg-slate-50 p-2 text-left">Meal</th>
@@ -56,16 +63,17 @@ export function WeeklyMenuTable({ generatedMenu }: { generatedMenu: WeeklyDayMen
                     return <td key={`${day.day}-${mealType}`} className="border p-2 text-slate-500">—</td>;
                   }
                   return (
-                    <td key={`${day.day}-${mealType}`} className="border p-2">
-                      <p className="font-medium">{meal.recipes.join(" + ")}</p>
-                      <div className="mt-2 space-y-2">
+                    <td key={`${day.day}-${mealType}`} className="border p-1.5 align-top">
+                      <select className="w-full rounded border p-1 text-xs font-medium" value={meal.recipes[0]} onChange={(e) => onReplaceRecipe(day.day, mealType, e.target.value)}>
+                        {recipeOptions
+                          .filter((recipe) => recipe.mealCategories.includes(mealType))
+                          .map((recipe) => <option key={`${day.day}-${mealType}-${recipe.name}`} value={recipe.name}>{recipe.name}</option>)}
+                      </select>
+                      <div className="mt-1 space-y-1">
                         {meal.portions.map((portion) => (
-                          <div key={`${day.day}-${mealType}-${portion.personId}`}>
-                            <p className="font-medium">{portion.personName}:</p>
-                            <ul className="list-disc pl-5 text-slate-700">
-                              <li>{portionLabelText[getPortionLabel(portion.multiplier)]}</li>
-                              <li>{Math.round(portion.estimatedCalories)} kcal estimate</li>
-                            </ul>
+                          <div key={`${day.day}-${mealType}-${portion.personId}`} className="text-[11px] text-slate-700">
+                            <span className="font-medium">{portion.personName}:</span>{" "}
+                            {((recipeByName.get(meal.recipes[0])?.ingredients ?? []).slice(0, 3)).map((ingredient) => `${ingredient.ingredientName} ${ingredient.unit === "piece" ? Math.max(1, Math.round(ingredient.quantityPerStandardPortion * portion.multiplier)) : Math.round(ingredient.quantityPerStandardPortion * portion.multiplier)} ${ingredient.unit}`).join(", ")}
                           </div>
                         ))}
                       </div>
