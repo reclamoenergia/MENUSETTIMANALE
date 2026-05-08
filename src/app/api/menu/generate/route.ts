@@ -53,5 +53,18 @@ export async function POST(request: Request) {
     console.warn("Missing recipe ingredient data for grocery list:", groceryList.warnings.join(" | "));
   }
 
-  return NextResponse.json({ ...menu, groceryList });
+  const recipeOptions = recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    mealCategories: recipe.mealCategories,
+    mainFoodGroup: recipe.mainFoodGroup,
+    ingredients: recipe.ingredients.map((item) => ({
+      ingredientId: item.ingredientId,
+      ingredientName: item.ingredient.name,
+      quantityPerStandardPortion: item.quantityPerStandardPortion,
+      unit: item.unit
+    }))
+  }));
+
+  return NextResponse.json({ ...menu, groceryList, recipeOptions });
 }

@@ -74,7 +74,9 @@ export function OnboardingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedOnboarding, setSavedOnboarding] = useState<{ household: { id: string; name: string }; persons: SavedPerson[] } | null>(null);
   const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
-  const [groceryList, setGroceryList] = useState<{ groups: { category: string; items: { ingredientId: string; ingredientName: string; displayQuantity: string }[] }[]; warnings: string[] } | null>(null);
+  const [groceryList, setGroceryList] = useState<{ groups: { category: string; items: { ingredientId: string; ingredientName: string; unit: string; displayQuantity: string }[] }[]; warnings: string[] } | null>(null);
+  const [recipeOptions, setRecipeOptions] = useState<{ name: string; mealCategories: string[]; mainFoodGroup: string; ingredients: { ingredientId: string; ingredientName: string; quantityPerStandardPortion: number; unit: string }[] }[]>([]);
+  const [menuConfirmed, setMenuConfirmed] = useState(false);
 
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
@@ -159,6 +161,32 @@ export function OnboardingForm() {
     const menu = await response.json();
     setGeneratedMenu(menu.meals);
     setGroceryList(menu.groceryList);
+    setRecipeOptions(menu.recipeOptions ?? []);
+    setMenuConfirmed(false);
+  };
+  const rebuildGrocery = (nextMenu: { day: string; meals: GeneratedMeal[] }[]) => {
+    const map = new Map<string, { ingredientId: string; ingredientName: string; unit: string; quantity: number; category: string }>();
+    const byName = new Map(recipeOptions.map((r) => [r.name, r]));
+    for (const day of nextMenu) for (const meal of day.meals) for (const recipeName of meal.recipes) {
+      const recipe = byName.get(recipeName);
+      if (!recipe || recipe.ingredients.length === 0) continue;
+      for (const ing of recipe.ingredients) {
+        const totalMultiplier = meal.portions.reduce((sum, p) => sum + p.multiplier, 0);
+        const key = `${ing.ingredientId}:${ing.unit}`;
+        const existing = map.get(key);
+        const qty = ing.quantityPerStandardPortion * totalMultiplier;
+        if (existing) existing.quantity += qty; else map.set(key, { ingredientId: ing.ingredientId, ingredientName: ing.ingredientName, unit: ing.unit, quantity: qty, category: "other" });
+      }
+    }
+    const items = Array.from(map.values()).map((i) => ({ ingredientId: i.ingredientId, ingredientName: i.ingredientName, unit: i.unit, displayQuantity: i.unit === "piece" ? `${Math.ceil(i.quantity)} pieces` : `${Math.round(i.quantity)} ${i.unit}` }));
+    setGroceryList({ groups: [{ category: "other", items }], warnings: [] });
+  };
+  const onReplaceRecipe = (dayName: string, mealType: GeneratedMeal["mealType"], recipeName: string) => {
+    if (!generatedMenu) return;
+    const next = generatedMenu.map((day) => day.day !== dayName ? day : ({ ...day, meals: day.meals.map((meal) => meal.mealType === mealType ? { ...meal, recipes: [recipeName] } : meal) }));
+    setGeneratedMenu(next);
+    rebuildGrocery(next);
+    setMenuConfirmed(false);
   };
 
   const navigateNext = async () => {
@@ -264,8 +292,9 @@ export function OnboardingForm() {
 
       {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
 
-      {generatedMenu ? <WeeklyMenuTable generatedMenu={generatedMenu} /> : null}
-      <GroceryListSection groceryList={groceryList} menuHasRecipes={Boolean(generatedMenu?.some((day) => day.meals.some((meal) => meal.recipes.length > 0)))} />
+      {generatedMenu ? <WeeklyMenuTable generatedMenu={generatedMenu} recipeOptions={recipeOptions} onReplaceRecipe={onReplaceRecipe} /> : null}
+      {generatedMenu ? <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-white" onClick={() => setMenuConfirmed(true)}>Confirm final menu for grocery list</button> : null}
+      {menuConfirmed ? <GroceryListSection groceryList={groceryList} menuHasRecipes={Boolean(generatedMenu?.some((day) => day.meals.some((meal) => meal.recipes.length > 0)))} /> : null}
     </div>
   );
 }
