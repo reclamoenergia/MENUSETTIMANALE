@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { MainFoodGroup } from "@prisma/client";
+import { GroceryListSection } from "@/components/grocery-list-section";
+import { WeeklyMenuTable, type GeneratedMeal } from "@/components/weekly-menu-table";
 
 type PersonInput = {
   name: string;
@@ -20,18 +22,6 @@ type SavedPerson = {
   weightKg: number;
   excludedFoodIds: string[];
   preferredFoodIds: string[];
-};
-
-type GeneratedMeal = {
-  mealType: "breakfast" | "lunch" | "afternoon_snack" | "dinner" | "morning_snack";
-  recipes: string[];
-  warning?: string;
-  portions: {
-    personId: string;
-    personName: string;
-    multiplier: number;
-    estimatedCalories: number;
-  }[];
 };
 
 const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
@@ -84,7 +74,7 @@ export function OnboardingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [savedOnboarding, setSavedOnboarding] = useState<{ household: { id: string; name: string }; persons: SavedPerson[] } | null>(null);
   const [generatedMenu, setGeneratedMenu] = useState<{ day: string; meals: GeneratedMeal[] }[] | null>(null);
-  const [groceryList, setGroceryList] = useState<Record<string, unknown> | null>(null);
+  const [groceryList, setGroceryList] = useState<{ groups: { category: string; items: { ingredientId: string; ingredientName: string; displayQuantity: string }[] }[]; warnings: string[] } | null>(null);
 
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
@@ -274,8 +264,8 @@ export function OnboardingForm() {
 
       {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
 
-      {generatedMenu ? <section className="space-y-3"><h2 className="text-lg font-semibold">Generated menu</h2>{generatedMenu.map((day) => <div key={day.day} className="rounded border p-3"><h3 className="font-medium">{day.day}</h3>{day.meals.map((meal, index) => <div key={`${day.day}-${meal.mealType}-${index}`} className="mt-2 text-sm"><p className="font-medium">{mealTypeLabel[meal.mealType]}: {meal.recipes.join(" + ")}</p>{meal.warning ? <p className="text-amber-700">⚠ {meal.warning}</p> : null}</div>)}</div>)}</section> : null}
-      {groceryList ? <details><summary className="cursor-pointer font-medium">Grocery list payload</summary><pre className="mt-2 overflow-auto rounded bg-slate-100 p-2 text-xs">{JSON.stringify(groceryList, null, 2)}</pre></details> : null}
+      {generatedMenu ? <WeeklyMenuTable generatedMenu={generatedMenu} /> : null}
+      <GroceryListSection groceryList={groceryList} menuHasRecipes={Boolean(generatedMenu?.some((day) => day.meals.some((meal) => meal.recipes.length > 0)))} />
     </div>
   );
 }
