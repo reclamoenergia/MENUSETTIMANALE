@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       ingredientId: item.ingredientId,
       ingredientName: item.ingredient.name,
       quantityPerStandardPortion: item.quantityPerStandardPortion,
-      unit: item.unit
+      unit: item.unit,
+      category: item.ingredient.category
     }))
   }));
 
