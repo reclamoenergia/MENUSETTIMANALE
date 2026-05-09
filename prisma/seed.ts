@@ -52,7 +52,7 @@ async function main() {
 
   for (const recipe of recipes) {
     const saved = await prisma.recipe.upsert({
-      where: { name: recipe.name },
+      where: { id: recipe.id },
       update: {
         mealCategories: recipe.mealCategories,
         recipeTags: recipe.recipeTags,

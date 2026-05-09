@@ -3,7 +3,7 @@ import { IngredientCategory, StorageType } from "@prisma/client";
 export type SeedIngredient = { id:string; name:string; category:IngredientCategory; storageType:StorageType; shelfLifeDays:number; recommendedPurchaseLeadDays:number; isSeasonal:boolean; seasonWeeks:number[]; hasFrozenOption:boolean };
 const allWeeks = Array.from({ length: 52 }, (_, i) => i + 1);
 export const ingredients: SeedIngredient[] = [
-{id:"pasta_secca",name:"Pasta secca",category:"pasta_rice_cereals",storageType:"pantry",shelfLifeDays:365,recommendedPurchaseLeadDays:7,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
+{id:"pasta",name:"Pasta secca",category:"pasta_rice_cereals",storageType:"pantry",shelfLifeDays:365,recommendedPurchaseLeadDays:7,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"riso",name:"Riso",category:"pasta_rice_cereals",storageType:"pantry",shelfLifeDays:365,recommendedPurchaseLeadDays:7,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"avena",name:"Fiocchi d'avena",category:"pasta_rice_cereals",storageType:"pantry",shelfLifeDays:240,recommendedPurchaseLeadDays:7,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"pane_integrale",name:"Pane integrale",category:"bread_bakery",storageType:"pantry",shelfLifeDays:3,recommendedPurchaseLeadDays:1,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:true},
@@ -41,7 +41,7 @@ export const ingredients: SeedIngredient[] = [
 {id:"tonno_naturale",name:"Tonno al naturale",category:"fish",storageType:"pantry",shelfLifeDays:365,recommendedPurchaseLeadDays:7,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"uova",name:"Uova",category:"eggs",storageType:"fridge",shelfLifeDays:20,recommendedPurchaseLeadDays:4,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"latte",name:"Latte",category:"dairy",storageType:"fridge",shelfLifeDays:7,recommendedPurchaseLeadDays:2,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
-{id:"yogurt_bianco",name:"Yogurt bianco",category:"dairy",storageType:"fridge",shelfLifeDays:14,recommendedPurchaseLeadDays:3,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
+{id:"yogurt",name:"Yogurt bianco",category:"dairy",storageType:"fridge",shelfLifeDays:14,recommendedPurchaseLeadDays:3,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"ricotta",name:"Ricotta",category:"dairy",storageType:"fridge",shelfLifeDays:5,recommendedPurchaseLeadDays:2,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"mozzarella",name:"Mozzarella",category:"dairy",storageType:"fridge",shelfLifeDays:5,recommendedPurchaseLeadDays:2,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
 {id:"parmigiano",name:"Parmigiano",category:"dairy",storageType:"fridge",shelfLifeDays:30,recommendedPurchaseLeadDays:5,isSeasonal:false,seasonWeeks:allWeeks,hasFrozenOption:false},
