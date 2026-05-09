@@ -45,8 +45,8 @@ export function GroceryListSection({ groceryList, menuHasRecipes }: { groceryLis
           <div key={group.category}>
             <h3 className="font-medium">{categoryLabel(group.category)}</h3>
             <ul className="mt-1 space-y-1 text-sm">
-              {group.items.map((item) => (
-                <li key={`${item.ingredientId}-${item.unit}`}>- {item.ingredientName} — {item.displayQuantity}</li>
+              {group.items.map((item, index) => (
+                <li key={`${item.ingredientId}-${item.unit ?? "no-unit"}-${item.displayQuantity ?? "no-quantity"}-${index}`}>- {item.ingredientName} — {item.displayQuantity}</li>
               ))}
             </ul>
           </div>
