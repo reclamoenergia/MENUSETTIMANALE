@@ -51,46 +51,67 @@ async function main() {
   }
 
   for (const recipe of recipes) {
-    const saved = await prisma.recipe.upsert({
-      where: { id: recipe.id },
-      update: {
-        mealCategories: recipe.mealCategories,
-        recipeTags: recipe.recipeTags,
-        regionalTags: recipe.regionalTags,
-        mainFoodGroup: recipe.mainFoodGroup,
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        canBePreparedDayBefore: recipe.canBePreparedDayBefore,
-        suitableForChildren: recipe.suitableForChildren,
-        isSideDish: recipe.isSideDish,
-        nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
-        steps: recipe.steps
-      },
-      create: {
-        id: recipe.id,
-        name: recipe.name,
-        mealCategories: recipe.mealCategories,
-        recipeTags: recipe.recipeTags,
-        regionalTags: recipe.regionalTags,
-        mainFoodGroup: recipe.mainFoodGroup,
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        canBePreparedDayBefore: recipe.canBePreparedDayBefore,
-        suitableForChildren: recipe.suitableForChildren,
-        isSideDish: recipe.isSideDish,
-        nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
-        steps: recipe.steps
-      }
-    });
+    await prisma.$transaction(async (tx) => {
+      const byId = await tx.recipe.findUnique({ where: { id: recipe.id }, select: { id: true } });
+      const byName = await tx.recipe.findUnique({ where: { name: recipe.name }, select: { id: true } });
 
-    await prisma.recipeIngredient.deleteMany({ where: { recipeId: saved.id } });
-    await prisma.recipeIngredient.createMany({
-      data: recipe.ingredients.map((ri) => ({
-        recipeId: saved.id,
-        ingredientId: ri.ingredientId,
-        quantityPerStandardPortion: ri.quantity,
-        unit: ri.unit
-      }))
+      if (!byId && byName && byName.id !== recipe.id) {
+        const targetIdAlreadyUsed = await tx.recipe.findUnique({ where: { id: recipe.id }, select: { id: true } });
+
+        if (!targetIdAlreadyUsed) {
+          await tx.recipe.update({
+            where: { id: byName.id },
+            data: { id: recipe.id }
+          });
+        } else {
+          await tx.recipeIngredient.deleteMany({ where: { recipeId: byName.id } });
+          await tx.recipe.delete({ where: { id: byName.id } });
+        }
+      }
+
+      const upserted = await tx.recipe.upsert({
+        where: { id: recipe.id },
+        update: {
+          name: recipe.name,
+          mealCategories: recipe.mealCategories,
+          recipeTags: recipe.recipeTags,
+          regionalTags: recipe.regionalTags,
+          mainFoodGroup: recipe.mainFoodGroup,
+          prepTimeMinutes: recipe.prepTimeMinutes,
+          cookTimeMinutes: recipe.cookTimeMinutes,
+          canBePreparedDayBefore: recipe.canBePreparedDayBefore,
+          suitableForChildren: recipe.suitableForChildren,
+          isSideDish: recipe.isSideDish,
+          nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
+          steps: recipe.steps
+        },
+        create: {
+          id: recipe.id,
+          name: recipe.name,
+          mealCategories: recipe.mealCategories,
+          recipeTags: recipe.recipeTags,
+          regionalTags: recipe.regionalTags,
+          mainFoodGroup: recipe.mainFoodGroup,
+          prepTimeMinutes: recipe.prepTimeMinutes,
+          cookTimeMinutes: recipe.cookTimeMinutes,
+          canBePreparedDayBefore: recipe.canBePreparedDayBefore,
+          suitableForChildren: recipe.suitableForChildren,
+          isSideDish: recipe.isSideDish,
+          nutritionPerStandardPortion: recipe.nutritionPerStandardPortion,
+          steps: recipe.steps
+        }
+      });
+
+      await tx.recipeIngredient.deleteMany({ where: { recipeId: upserted.id } });
+      await tx.recipeIngredient.createMany({
+        data: recipe.ingredients.map((ri) => ({
+          recipeId: upserted.id,
+          ingredientId: ri.ingredientId,
+          quantityPerStandardPortion: ri.quantity,
+          unit: ri.unit
+        }))
+      });
+
     });
   }
 }
