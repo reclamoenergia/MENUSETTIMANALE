@@ -114,7 +114,7 @@ function mapIngredientCategory(category: IngredientCategory): GroceryCategory {
 }
 
 export function generateGroceryList(params: {
-  weeklyMenu: { meals: { recipes: string[]; portions: { multiplier: number }[] }[] }[];
+  weeklyMenu: { meals: { recipes: string[]; portions: { multiplier: number; assignedRecipeName?: string }[] }[] }[];
   recipes: RecipeWithIngredients[];
 }) {
   const recipesByName = new Map(params.recipes.map((recipe) => [recipe.name, recipe]));
@@ -123,9 +123,14 @@ export function generateGroceryList(params: {
 
   for (const day of params.weeklyMenu) {
     for (const meal of day.meals) {
-      const totalMultiplier = meal.portions.reduce((sum, portion) => sum + portion.multiplier, 0);
+      const multipliersByRecipe = new Map<string, number>();
+      for (const portion of meal.portions) {
+        const recipeName = portion.assignedRecipeName ?? meal.recipes[0];
+        if (!recipeName) continue;
+        multipliersByRecipe.set(recipeName, (multipliersByRecipe.get(recipeName) ?? 0) + portion.multiplier);
+      }
 
-      for (const recipeName of meal.recipes) {
+      for (const [recipeName, totalMultiplier] of multipliersByRecipe.entries()) {
         const recipe = recipesByName.get(recipeName);
         if (!recipe) continue;
 
