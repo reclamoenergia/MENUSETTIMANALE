@@ -26,12 +26,13 @@ type SavedPerson = {
   preferredFoodIds: string[];
 };
 
-const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
-  breakfast: "Breakfast",
-  morning_snack: "Morning snack",
-  lunch: "Lunch",
-  afternoon_snack: "Afternoon snack",
-  dinner: "Dinner"
+const mealTypeLabel: Record<string, string> = {
+  breakfast: "Colazione",
+  morning_snack: "Spuntino mattutino 1",
+  morning_snack_2: "Spuntino mattutino 2",
+  lunch: "Pranzo",
+  afternoon_snack: "Merenda pomeridiana",
+  dinner: "Cena"
 };
 
 const foodOptions = [
@@ -50,9 +51,9 @@ const foodOptions = [
   { id: "cheese", label: "Cheese" }
 ] as const;
 
-const weeklyDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+const weeklyDays = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"] as const;
 const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
-const mealRows = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"] as const;
+const mealRows = ["breakfast", "morning_snack", "morning_snack_2", "lunch", "afternoon_snack", "dinner"] as const;
 const foodGroups: MainFoodGroup[] = ["cereals", "legumes", "fish", "white_meat", "red_meat", "eggs", "cheese", "vegetarian"];
 
 const defaultPerson: PersonInput = { name: "", age: 30, sex: "female", heightCm: 165, weightKg: 60, preferredBreakfastRecipeName: undefined };
@@ -247,9 +248,9 @@ export function OnboardingForm() {
               <input className="rounded border p-2" placeholder="Height (cm)" type="number" value={person.heightCm ?? ""} onChange={(e) => updatePerson(index, "heightCm", parseNumericInput(e.target.value))} required />
               <input className="rounded border p-2" placeholder="Weight (kg)" type="number" value={person.weightKg ?? ""} onChange={(e) => updatePerson(index, "weightKg", parseNumericInput(e.target.value))} required />
             </div>
-            <label className="block text-sm">Preferred breakfast
+            <label className="block text-sm">Colazione abituale
               <select className="mt-1 w-full rounded border p-2" value={person.preferredBreakfastRecipeName ?? ""} onChange={(e) => updatePerson(index, "preferredBreakfastRecipeName", e.target.value || undefined)}>
-                <option value="">Default breakfast</option>
+                <option value="">Colazione predefinita</option>
                 {breakfastRecipeOptions.map((name) => <option key={`breakfast-${index}-${name}`} value={name}>{name}</option>)}
               </select>
             </label>
@@ -277,7 +278,7 @@ export function OnboardingForm() {
           )}
         </div>
 
-        <div><button className="rounded bg-slate-900 px-4 py-2 text-white" type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save household"}</button></div>
+        <div><button className="rounded bg-slate-900 px-4 py-2 text-white" type="submit" disabled={isSubmitting}>{isSubmitting ? "Salvataggio..." : "Salva nucleo familiare"}</button></div>
         {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
       </form>
     );

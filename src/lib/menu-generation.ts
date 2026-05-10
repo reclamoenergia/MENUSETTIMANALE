@@ -38,6 +38,7 @@ const pickSeasonalFruit = (weekNumber: number, dayIndex: number) => {
 
 type WeeklyBalanceSlot = { dayKey: string; mealType: "lunch" | "dinner"; mainFoodGroup: MainFoodGroup };
 
+const FIXED_BREAKFASTS = new Set(["yogurt greco 150 g con 4 biscotti","latte e biscotti","latte e cereali","pancake semplici con frutta"]);
 const FIXED_MORNING_SNACKS = new Set(["panino con il prosciutto","panino con il pomodoro","banana","taralli","carote","merendina","biscotti ringo"]);
 const FIXED_AFTERNOON_SNACKS = new Set(["latte e cereali","fagottini di bresaola con fiocchi di latte","pancake con frutta","merendina","banana"]);
 
@@ -67,7 +68,7 @@ export function generateWeeklyMenu(params: {
   const hasChildren = params.persons.some((p) => p.age < 18);
 
   const sideDishes = filterRecipesHard(params.recipes, { mealCategory: "side_dish", excludedFoodIds, maxPrepMinutes: 30, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber });
-  const breakfastRecipes = filterRecipesHard(params.recipes, { mealCategory: "breakfast", excludedFoodIds, maxPrepMinutes: 20, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber });
+  const breakfastRecipes = filterRecipesHard(params.recipes, { mealCategory: "breakfast", excludedFoodIds, maxPrepMinutes: 20, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber }).filter((r) => FIXED_BREAKFASTS.has(r.name.toLowerCase()));
   const morningSnackRecipes = filterRecipesHard(params.recipes, { mealCategory: "morning_snack", excludedFoodIds, maxPrepMinutes: 15, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber }).filter((r) => FIXED_MORNING_SNACKS.has(r.name.toLowerCase()));
   const afternoonSnackRecipes = filterRecipesHard(params.recipes, { mealCategory: "afternoon_snack", excludedFoodIds, maxPrepMinutes: 15, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber }).filter((r) => FIXED_AFTERNOON_SNACKS.has(r.name.toLowerCase()));
 
@@ -113,12 +114,18 @@ export function generateWeeklyMenu(params: {
       }
     }
     if (params.persons.some((p) => p.defaultManagedMeals.includes("morning_snack")) && morningSnackRecipes.length > 0) {
-      const recipe = morningSnackRecipes[dayIndex % morningSnackRecipes.length];
+      const recipe1 = morningSnackRecipes[dayIndex % morningSnackRecipes.length];
+      const recipe2 = morningSnackRecipes[(dayIndex + 2) % morningSnackRecipes.length];
       composed.push({
         mealType: "morning_snack",
-        recipes: [recipe.name],
-        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution })
-      });
+        recipes: [recipe1.name],
+        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe1], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }).map((portion) => ({ ...portion, assignedRecipeName: recipe1.name }))
+      } as { mealType: MealType; recipes: string[]; portions: ReturnType<typeof buildPortions>; warning?: string });
+      composed.push({
+        mealType: "morning_snack",
+        recipes: [recipe2.name],
+        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe2], persons: params.persons, dayIndex, isPresentAtMeal: (personId, _mealType, idx) => params.presence?.[`morning_snack_2:${dayKeys[idx]}:${personId}`] ?? isPresentAtMeal(personId, "morning_snack", idx), isSportDay, mealDistribution }).map((portion) => ({ ...portion, assignedRecipeName: recipe2.name, snackSlot: "morning_snack_2" }))
+      } as { mealType: MealType; recipes: string[]; portions: ReturnType<typeof buildPortions>; warning?: string });
     }
 
     if (params.persons.some((p) => p.defaultManagedMeals.includes("afternoon_snack")) && afternoonSnackRecipes.length > 0) {

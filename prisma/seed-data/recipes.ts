@@ -7,14 +7,10 @@ const quick=["family_friendly","quick"] as RecipeTag[];
 const mk=(id:string,name:string,c:RecipeMealCategory[],g:MainFoodGroup,ing:RecipeIngredientInput[],kcal:number,isSideDish=false):SeedRecipe=>({id,name,mealCategories:c,recipeTags:quick,regionalTags:[],mainFoodGroup:g,prepTimeMinutes:10,cookTimeMinutes:15,canBePreparedDayBefore:true,suitableForChildren:true,isSideDish,nutritionPerStandardPortion:{kcal,proteinG:20,carbsG:30,fatG:12,sugarsG:6},ingredients:ing,steps:["Preparare ingredienti","Cuocere","Servire"]});
 
 export const recipes: SeedRecipe[] = [
-mk("br1","Yogurt con mela e avena",["breakfast"],"cereals",[{ingredientId:"yogurt",quantity:170,unit:"g"},{ingredientId:"mela",quantity:1,unit:"piece"},{ingredientId:"avena",quantity:30,unit:"g"}],320),
-mk("br2","Pane integrale con ricotta e miele",["breakfast"],"cheese",[{ingredientId:"pane_integrale",quantity:60,unit:"g"},{ingredientId:"ricotta",quantity:80,unit:"g"},{ingredientId:"miele",quantity:1,unit:"tbsp"}],340),
-mk("br3","Porridge banana e latte",["breakfast"],"cereals",[{ingredientId:"avena",quantity:45,unit:"g"},{ingredientId:"latte",quantity:200,unit:"ml"},{ingredientId:"banana",quantity:1,unit:"piece"}],360),
-mk("br4","Toast con mozzarella e pomodoro",["breakfast"],"cheese",[{ingredientId:"pane_integrale",quantity:60,unit:"g"},{ingredientId:"mozzarella",quantity:70,unit:"g"},{ingredientId:"pomodoro",quantity:100,unit:"g"}],330),
-mk("br5","Uova strapazzate e pane",["breakfast"],"eggs",[{ingredientId:"uova",quantity:2,unit:"piece"},{ingredientId:"pane_integrale",quantity:50,unit:"g"}],310),
-mk("br6","Pancake semplici",["breakfast"],"cereals",[{ingredientId:"farina",quantity:50,unit:"g"},{ingredientId:"uova",quantity:1,unit:"piece"},{ingredientId:"latte",quantity:120,unit:"ml"}],300),
-mk("br7","Ricotta con pera e mandorle",["breakfast"],"fruit",[{ingredientId:"ricotta",quantity:100,unit:"g"},{ingredientId:"pera",quantity:1,unit:"piece"},{ingredientId:"mandorle",quantity:15,unit:"g"}],320),
-mk("br8","Yogurt con fragole",["breakfast"],"fruit",[{ingredientId:"yogurt",quantity:170,unit:"g"},{ingredientId:"fragole",quantity:120,unit:"g"}],230),
+mk("br1","Yogurt greco 150 g con 4 biscotti",["breakfast"],"cheese",[{ingredientId:"yogurt",quantity:150,unit:"g"},{ingredientId:"biscotti_ringo",quantity:4,unit:"piece"}],300),
+mk("br2","Latte e biscotti",["breakfast"],"cereals",[{ingredientId:"latte",quantity:220,unit:"ml"},{ingredientId:"biscotti_ringo",quantity:35,unit:"g"}],320),
+mk("br3","Latte e cereali",["breakfast"],"cereals",[{ingredientId:"latte",quantity:220,unit:"ml"},{ingredientId:"cereali_colazione",quantity:40,unit:"g"}],330),
+mk("br4","Pancake semplici con frutta",["breakfast"],"cereals",[{ingredientId:"farina",quantity:50,unit:"g"},{ingredientId:"uova",quantity:1,unit:"piece"},{ingredientId:"latte",quantity:120,unit:"ml"},{ingredientId:"banana",quantity:1,unit:"piece"}],360),
 mk("sn1","panino con il prosciutto",["morning_snack"],"snack",[{ingredientId:"pane_integrale",quantity:60,unit:"g"},{ingredientId:"prosciutto_cotto",quantity:40,unit:"g"}],240),
 mk("sn2","panino con il pomodoro",["morning_snack"],"snack",[{ingredientId:"pane_integrale",quantity:60,unit:"g"},{ingredientId:"pomodoro",quantity:80,unit:"g"}],180),
 mk("sn3","banana",["morning_snack","afternoon_snack"],"fruit",[{ingredientId:"banana",quantity:1,unit:"piece"}],95),
