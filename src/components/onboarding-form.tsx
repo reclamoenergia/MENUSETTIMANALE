@@ -107,6 +107,15 @@ export function OnboardingForm() {
 
   const keyFor = (mealOrSport: string, day: string, personId: string) => `${mealOrSport}:${day}:${personId}`;
   const setPresence = (mealType: string, day: string, personId: string, checked: boolean) => setPresenceMap((prev) => ({ ...prev, [keyFor(mealType, day, personId)]: checked }));
+  const setMealWeekPresence = (mealType: string, personId: string, checked: boolean) => {
+    setPresenceMap((prev) => {
+      const next = { ...prev };
+      for (const day of dayKeys) {
+        next[keyFor(mealType, day, personId)] = checked;
+      }
+      return next;
+    });
+  };
   const setSportDay = (day: string, personId: string, checked: boolean) => setSportDaysMap((prev) => ({ ...prev, [keyFor("sport", day, personId)]: checked }));
 
 
@@ -333,8 +342,8 @@ export function OnboardingForm() {
           {savedOnboarding.persons.map((person) => (
             <div key={person.id} className="space-y-2">
               <h3 className="font-medium">{person.name}</h3>
-              <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Meal</th>{weeklyDays.map((d) => <th key={d} className="border p-1">{d}</th>)}</tr></thead>
-                <tbody>{mealRows.map((meal) => <tr key={`${person.id}-${meal}`}><td className="border p-1">{mealTypeLabel[meal]}</td>{dayKeys.map((day, i) => <td key={`${person.id}-${meal}-${day}`} className="border p-1 text-center"><input type="checkbox" checked={presenceMap[keyFor(meal, day, person.id)] ?? true} onChange={(e) => setPresence(meal, day, person.id, e.target.checked)} /></td>)}</tr>)}</tbody></table>
+              <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Meal</th>{weeklyDays.map((d) => <th key={d} className="border p-1">{d}</th>)}<th className="border p-1 text-left">Azioni</th></tr></thead>
+                <tbody>{mealRows.map((meal) => <tr key={`${person.id}-${meal}`}><td className="border p-1">{mealTypeLabel[meal]}</td>{dayKeys.map((day) => <td key={`${person.id}-${meal}-${day}`} className="border p-1 text-center"><input type="checkbox" checked={presenceMap[keyFor(meal, day, person.id)] ?? true} onChange={(e) => setPresence(meal, day, person.id, e.target.checked)} /></td>)}<td className="border p-1"><div className="flex flex-wrap gap-1"><button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setMealWeekPresence(meal, person.id, false)}>Assente tutta la settimana</button><button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setMealWeekPresence(meal, person.id, true)}>Presente tutta la settimana</button></div></td></tr>)}</tbody></table>
             </div>
           ))}
         </section>
