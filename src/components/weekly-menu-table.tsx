@@ -11,6 +11,7 @@ export type GeneratedMeal = {
     personName: string;
     multiplier: number;
     estimatedCalories: number;
+    assignedRecipeName?: string;
   }[];
 };
 type RecipeOption = {
@@ -31,6 +32,8 @@ const mealTypeLabel: Record<GeneratedMeal["mealType"], string> = {
 };
 
 const mealRowOrder: GeneratedMeal["mealType"][] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
+const fixedMorningSnacks = new Set(["panino con il prosciutto", "panino con il pomodoro", "banana", "taralli", "carote", "merendina", "biscotti ringo"]);
+const fixedAfternoonSnacks = new Set(["latte e cereali", "fagottini di bresaola con fiocchi di latte", "pancake con frutta", "merendina", "banana"]);
 
 export function WeeklyMenuTable({
   generatedMenu,
@@ -69,7 +72,11 @@ export function WeeklyMenuTable({
                       <select className="w-full rounded border p-1 text-xs font-medium" value={meal.recipes[0]} onChange={(e) => onReplaceRecipe(day.day, mealType, e.target.value)}>
                         {!recipeByName.has(meal.recipes[0]) ? <option value={meal.recipes[0]}>{meal.recipes[0]}</option> : null}
                         {recipeOptions
-                          .filter((recipe) => recipe.mealCategories.includes(mealType))
+                          .filter((recipe) => {
+                            if (mealType === "morning_snack") return fixedMorningSnacks.has(recipe.name.toLowerCase());
+                            if (mealType === "afternoon_snack") return fixedAfternoonSnacks.has(recipe.name.toLowerCase());
+                            return recipe.mealCategories.includes(mealType);
+                          })
                           .map((recipe) => <option key={`${day.day}-${mealType}-${recipe.name}`} value={recipe.name}>{recipe.name}</option>)}
                       </select>
                       <div className="mt-1 space-y-1">
@@ -77,7 +84,8 @@ export function WeeklyMenuTable({
                           <div key={`${day.day}-${mealType}-${portion.personId}`} className="text-[11px] text-slate-700">
                             <span className="font-medium">{portion.personName}:</span>{" "}
                             {(() => {
-                              const recipe = recipeByName.get(meal.recipes[0]);
+                              const selectedName = portion.assignedRecipeName ?? meal.recipes[0];
+                              const recipe = recipeByName.get(selectedName);
                               if (!recipe) return "portion details unavailable";
                               const details = buildRecipePortionIngredients({
                                 recipeName: recipe.name,

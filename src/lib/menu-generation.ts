@@ -38,6 +38,9 @@ const pickSeasonalFruit = (weekNumber: number, dayIndex: number) => {
 
 type WeeklyBalanceSlot = { dayKey: string; mealType: "lunch" | "dinner"; mainFoodGroup: MainFoodGroup };
 
+const FIXED_MORNING_SNACKS = new Set(["panino con il prosciutto","panino con il pomodoro","banana","taralli","carote","merendina","biscotti ringo"]);
+const FIXED_AFTERNOON_SNACKS = new Set(["latte e cereali","fagottini di bresaola con fiocchi di latte","pancake con frutta","merendina","banana"]);
+
 export { estimateDailyCalories, estimateMacroTargets, WeeklyFoodGroupRules };
 
 export function generateWeeklyMenu(params: {
@@ -55,6 +58,7 @@ export function generateWeeklyMenu(params: {
   presence?: Record<string, boolean>;
   sportDays?: Record<string, boolean>;
   weeklyBalanceSlots?: WeeklyBalanceSlot[];
+  preferredBreakfastByPersonId?: Record<string, string>;
 }) {
   const planningDays = params.planningDays ?? 7;
   const excludedFoodIds = [...new Set([...params.persons.flatMap((p) => p.excludedFoodIds), ...(params.forbiddenFoodIds ?? [])])];
@@ -64,7 +68,8 @@ export function generateWeeklyMenu(params: {
 
   const sideDishes = filterRecipesHard(params.recipes, { mealCategory: "side_dish", excludedFoodIds, maxPrepMinutes: 30, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber });
   const breakfastRecipes = filterRecipesHard(params.recipes, { mealCategory: "breakfast", excludedFoodIds, maxPrepMinutes: 20, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber });
-  const afternoonSnackRecipes = filterRecipesHard(params.recipes, { mealCategory: "afternoon_snack", excludedFoodIds, maxPrepMinutes: 15, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber });
+  const morningSnackRecipes = filterRecipesHard(params.recipes, { mealCategory: "morning_snack", excludedFoodIds, maxPrepMinutes: 15, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber }).filter((r) => FIXED_MORNING_SNACKS.has(r.name.toLowerCase()));
+  const afternoonSnackRecipes = filterRecipesHard(params.recipes, { mealCategory: "afternoon_snack", excludedFoodIds, maxPrepMinutes: 15, mustBePreppableDayBefore: false, allowFrozenFood: params.allowFrozenFood, weekNumber: params.weekNumber }).filter((r) => FIXED_AFTERNOON_SNACKS.has(r.name.toLowerCase()));
 
   const userSlotMap = new Map((params.weeklyBalanceSlots ?? []).map((s) => [`${s.dayKey}:${s.mealType}`, s.mainFoodGroup]));
   const balancePlan = buildBalancePlan({ planningDays, weeklyFoodGroupRules: params.weeklyFoodGroupRules, userSlotMap });
@@ -94,30 +99,31 @@ export function generateWeeklyMenu(params: {
     }
 
     if (params.persons.some((p) => p.defaultManagedMeals.includes("breakfast"))) {
-      const mode = params.breakfastSnackMode ?? "simple_suggestions";
-      if (mode === "recipes" && breakfastRecipes.length > 0) {
-        composed.unshift({ mealType: "breakfast", recipes: [breakfastRecipes[dayIndex % breakfastRecipes.length].name], portions: buildPortions({ mealType: "breakfast", selectedRecipes: [breakfastRecipes[dayIndex % breakfastRecipes.length]], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
-      } else {
-        const fruit = pickSeasonalFruit(params.weekNumber, dayIndex);
-        composed.unshift({ mealType: "breakfast", recipes: [snackSuggestionPool.breakfast[dayIndex % snackSuggestionPool.breakfast.length].replaceAll("{fruit}", fruit)], portions: buildSimpleSuggestionPortions({ mealType: "breakfast", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
+      const fallbackBreakfast = breakfastRecipes[0];
+      if (fallbackBreakfast) {
+        const breakfastByPerson = params.persons
+          .filter((p) => p.defaultManagedMeals.includes("breakfast"))
+          .map((person) => {
+            const preferred = breakfastRecipes.find((recipe) => recipe.name === params.preferredBreakfastByPersonId?.[person.id]);
+            return { person, recipe: preferred ?? fallbackBreakfast };
+          });
+        const uniqueRecipes = Array.from(new Set(breakfastByPerson.map((item) => item.recipe.name)));
+        const portions = breakfastByPerson.map(({ person, recipe }) => ({ ...buildPortions({ mealType: "breakfast", selectedRecipes: [recipe], persons: [person], dayIndex, isPresentAtMeal, isSportDay, mealDistribution })[0], assignedRecipeName: recipe.name }));
+        composed.unshift({ mealType: "breakfast", recipes: uniqueRecipes, portions });
       }
     }
-    if (params.persons.some((p) => p.defaultManagedMeals.includes("morning_snack"))) {
-      const fruit = pickSeasonalFruit(params.weekNumber, dayIndex);
+    if (params.persons.some((p) => p.defaultManagedMeals.includes("morning_snack")) && morningSnackRecipes.length > 0) {
+      const recipe = morningSnackRecipes[dayIndex % morningSnackRecipes.length];
       composed.push({
         mealType: "morning_snack",
-        recipes: [snackSuggestionPool.morning_snack[dayIndex % snackSuggestionPool.morning_snack.length].replaceAll("{fruit}", fruit)],
-        portions: buildSimpleSuggestionPortions({ mealType: "morning_snack", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution })
+        recipes: [recipe.name],
+        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution })
       });
     }
 
-    if (params.persons.some((p) => p.defaultManagedMeals.includes("afternoon_snack"))) {
-      const mode = params.breakfastSnackMode ?? "simple_suggestions";
-      if (mode === "recipes" && afternoonSnackRecipes.length > 0) {
-        composed.push({ mealType: "afternoon_snack", recipes: [afternoonSnackRecipes[dayIndex % afternoonSnackRecipes.length].name], portions: buildPortions({ mealType: "afternoon_snack", selectedRecipes: [afternoonSnackRecipes[dayIndex % afternoonSnackRecipes.length]], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
-      } else {
-        composed.push({ mealType: "afternoon_snack", recipes: [snackSuggestionPool.afternoon_snack[dayIndex % snackSuggestionPool.afternoon_snack.length]], portions: buildSimpleSuggestionPortions({ mealType: "afternoon_snack", persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
-      }
+    if (params.persons.some((p) => p.defaultManagedMeals.includes("afternoon_snack")) && afternoonSnackRecipes.length > 0) {
+      const recipe = afternoonSnackRecipes[dayIndex % afternoonSnackRecipes.length];
+      composed.push({ mealType: "afternoon_snack", recipes: [recipe.name], portions: buildPortions({ mealType: "afternoon_snack", selectedRecipes: [recipe], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
     }
 
     return { day, meals: composed };

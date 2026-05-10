@@ -12,6 +12,7 @@ type PersonInput = {
   sex: "male" | "female";
   heightCm: number | undefined;
   weightKg: number | undefined;
+  preferredBreakfastRecipeName?: string;
 };
 
 type SavedPerson = {
@@ -54,7 +55,7 @@ const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturd
 const mealRows = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"] as const;
 const foodGroups: MainFoodGroup[] = ["cereals", "legumes", "fish", "white_meat", "red_meat", "eggs", "cheese", "vegetarian"];
 
-const defaultPerson: PersonInput = { name: "", age: 30, sex: "female", heightCm: 165, weightKg: 60 };
+const defaultPerson: PersonInput = { name: "", age: 30, sex: "female", heightCm: 165, weightKg: 60, preferredBreakfastRecipeName: undefined };
 
 function defaultBalancePlan() {
   return dayKeys.flatMap((dayKey, index) => {
@@ -78,6 +79,8 @@ export function OnboardingForm() {
   const [groceryList, setGroceryList] = useState<{ groups: { category: string; items: { ingredientId: string; ingredientName: string; unit: string; displayQuantity: string }[] }[]; warnings: string[] } | null>(null);
   const [recipeOptions, setRecipeOptions] = useState<{ name: string; mealCategories: string[]; mainFoodGroup: string; ingredients: { ingredientId: string; ingredientName: string; quantityPerStandardPortion: number; unit: "g" | "ml" | "piece"; category?: IngredientCategory }[] }[]>([]);
   const [menuConfirmed, setMenuConfirmed] = useState(false);
+  const [savedPeopleOptions, setSavedPeopleOptions] = useState<SavedPerson[]>([]);
+  const [selectedSavedPeopleIds, setSelectedSavedPeopleIds] = useState<string[]>([]);
 
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
@@ -85,6 +88,8 @@ export function OnboardingForm() {
   const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({});
   const [sportDaysMap, setSportDaysMap] = useState<Record<string, boolean>>({});
   const [balancePlan, setBalancePlan] = useState(defaultBalancePlan());
+
+  const breakfastRecipeOptions = useMemo(() => recipeOptions.filter((recipe) => recipe.mealCategories.includes("breakfast")).map((recipe) => recipe.name), [recipeOptions]);
 
   const updatePerson = <K extends keyof PersonInput>(index: number, field: K, value: PersonInput[K]) => {
     setPersons((current) => current.map((person, personIndex) => (personIndex === index ? { ...person, [field]: value } : person)));
@@ -107,6 +112,11 @@ export function OnboardingForm() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
+      const savedPeopleResponse = await fetch(`/api/persons?email=${encodeURIComponent(email)}`);
+      if (savedPeopleResponse.ok) {
+        const savedPeopleData = await savedPeopleResponse.json();
+        setSavedPeopleOptions(savedPeopleData.persons ?? []);
+      }
       const householdResponse = await fetch("/api/households", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: householdName, email }) });
       if (!householdResponse.ok) throw new Error("Unable to create household");
       const household = await householdResponse.json();
@@ -147,6 +157,7 @@ export function OnboardingForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         householdId: savedOnboarding.household.id,
+        preferredBreakfastByPersonId: Object.fromEntries(savedOnboarding.persons.map((person) => [person.id, (persons.find((input) => input.name === person.name)?.preferredBreakfastRecipeName ?? "")]).filter((entry) => entry[1])),
         breakfastSnackMode: "recipes",
         forbiddenFoodIds: selectedForbiddenFoods,
         preferredFoodIds: selectedPreferredFoods,
@@ -236,9 +247,36 @@ export function OnboardingForm() {
               <input className="rounded border p-2" placeholder="Height (cm)" type="number" value={person.heightCm ?? ""} onChange={(e) => updatePerson(index, "heightCm", parseNumericInput(e.target.value))} required />
               <input className="rounded border p-2" placeholder="Weight (kg)" type="number" value={person.weightKg ?? ""} onChange={(e) => updatePerson(index, "weightKg", parseNumericInput(e.target.value))} required />
             </div>
+            <label className="block text-sm">Preferred breakfast
+              <select className="mt-1 w-full rounded border p-2" value={person.preferredBreakfastRecipeName ?? ""} onChange={(e) => updatePerson(index, "preferredBreakfastRecipeName", e.target.value || undefined)}>
+                <option value="">Default breakfast</option>
+                {breakfastRecipeOptions.map((name) => <option key={`breakfast-${index}-${name}`} value={name}>{name}</option>)}
+              </select>
+            </label>
           </div>
         ))}
         <button type="button" className="rounded border px-3 py-2" onClick={addPerson}>Add person</button>
+        <div className="space-y-2 rounded border p-3">
+          <h3 className="font-medium">Use saved people</h3>
+          {savedPeopleOptions.length === 0 ? <p className="text-sm text-slate-500">No saved people found for this email.</p> : (
+            <>
+              {savedPeopleOptions.map((saved) => (
+                <label key={`saved-${saved.id}`} className="block text-sm">
+                  <input type="checkbox" checked={selectedSavedPeopleIds.includes(saved.id)} onChange={(e) => setSelectedSavedPeopleIds((prev) => e.target.checked ? [...prev, saved.id] : prev.filter((id) => id !== saved.id))} /> {saved.name} ({saved.age})
+                </label>
+              ))}
+              <button type="button" className="rounded border px-3 py-2" onClick={() => {
+                const selected = savedPeopleOptions.filter((saved) => selectedSavedPeopleIds.includes(saved.id));
+                setPersons((current) => {
+                  const names = new Set(current.map((person) => person.name.trim().toLowerCase()));
+                  const additions = selected.filter((saved) => !names.has(saved.name.trim().toLowerCase())).map((saved) => ({ name: saved.name, age: saved.age, sex: saved.sex, heightCm: saved.heightCm, weightKg: saved.weightKg, preferredBreakfastRecipeName: undefined }));
+                  return [...current, ...additions];
+                });
+              }}>Add selected people</button>
+            </>
+          )}
+        </div>
+
         <div><button className="rounded bg-slate-900 px-4 py-2 text-white" type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save household"}</button></div>
         {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
       </form>

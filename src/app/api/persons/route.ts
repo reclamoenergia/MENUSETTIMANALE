@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { resolveUserByEmail } from "@/lib/user-session";
 import { z } from "zod";
 
 const schema = z.object({
@@ -10,6 +11,15 @@ const schema = z.object({
   excludedFoodIds: z.array(z.string()).default([]), preferredFoodIds: z.array(z.string()).default([]),
   defaultManagedMeals: z.array(z.enum(["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner", "evening_snack"]))
 });
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const email = searchParams.get("email");
+  if (!email) return NextResponse.json({ persons: [] });
+  const user = await resolveUserByEmail(email);
+  const persons = await prisma.person.findMany({ where: { household: { userId: user.id } }, orderBy: { createdAt: "desc" } });
+  return NextResponse.json({ persons });
+}
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
