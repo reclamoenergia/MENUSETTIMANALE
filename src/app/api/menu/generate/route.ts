@@ -11,7 +11,8 @@ const schema = z.object({
   preferredFoodIds: z.array(z.string()).optional(),
   presence: z.record(z.boolean()).optional(),
   sportDays: z.record(z.boolean()).optional(),
-  weeklyBalanceSlots: z.array(z.object({ dayKey: z.string(), mealType: z.enum(["lunch","dinner"]), mainFoodGroup: z.enum(["cereals","legumes","fish","white_meat","red_meat","eggs","cheese","vegetarian"]) })).optional()
+  weeklyBalanceSlots: z.array(z.object({ dayKey: z.string(), mealType: z.enum(["lunch","dinner"]), mainFoodGroup: z.enum(["cereals","legumes","fish","white_meat","red_meat","eggs","cheese","vegetarian"]) })).optional(),
+  preferredBreakfastByPersonId: z.record(z.string()).optional()
 });
 
 export async function POST(request: Request) {
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
     preferredFoodIds: parsed.data.preferredFoodIds,
     presence: parsed.data.presence,
     sportDays: parsed.data.sportDays,
-    weeklyBalanceSlots: parsed.data.weeklyBalanceSlots
+    weeklyBalanceSlots: parsed.data.weeklyBalanceSlots,
+    preferredBreakfastByPersonId: parsed.data.preferredBreakfastByPersonId
   });
   let groceryList;
   try {
