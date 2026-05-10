@@ -82,6 +82,7 @@ export function OnboardingForm() {
   const [menuConfirmed, setMenuConfirmed] = useState(false);
   const [savedPeopleOptions, setSavedPeopleOptions] = useState<SavedPerson[]>([]);
   const [selectedSavedPeopleIds, setSelectedSavedPeopleIds] = useState<string[]>([]);
+  const [savedHouseholds, setSavedHouseholds] = useState<{ id: string; name: string; createdAt?: string; updatedAt?: string; persons: SavedPerson[] }[]>([]);
 
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
@@ -107,6 +108,24 @@ export function OnboardingForm() {
   const keyFor = (mealOrSport: string, day: string, personId: string) => `${mealOrSport}:${day}:${personId}`;
   const setPresence = (mealType: string, day: string, personId: string, checked: boolean) => setPresenceMap((prev) => ({ ...prev, [keyFor(mealType, day, personId)]: checked }));
   const setSportDay = (day: string, personId: string, checked: boolean) => setSportDaysMap((prev) => ({ ...prev, [keyFor("sport", day, personId)]: checked }));
+
+
+  const loadHouseholds = async () => {
+    if (!email) return;
+    const response = await fetch(`/api/households?email=${encodeURIComponent(email)}`);
+    if (!response.ok) return;
+    const data = await response.json();
+    setSavedHouseholds(data.households ?? []);
+  };
+
+  const recoverHousehold = (householdId: string) => {
+    const household = savedHouseholds.find((item) => item.id === householdId);
+    if (!household) return;
+    setHouseholdName(household.name);
+    setPersons(household.persons.map((saved) => ({ name: saved.name, age: saved.age, sex: saved.sex, heightCm: saved.heightCm, weightKg: saved.weightKg, preferredBreakfastRecipeName: undefined })));
+    setSavedOnboarding({ household: { id: household.id, name: household.name }, persons: household.persons });
+    setStep(2);
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -184,8 +203,13 @@ export function OnboardingForm() {
 
     for (const day of nextMenu) {
       for (const meal of day.meals) {
-        const totalMultiplier = meal.portions.reduce((sum, p) => sum + p.multiplier, 0);
-        for (const recipeName of meal.recipes) {
+        const multipliersByRecipe = new Map<string, number>();
+        for (const portion of meal.portions) {
+          const selected = portion.assignedRecipeName ?? meal.recipes[0];
+          if (!selected) continue;
+          multipliersByRecipe.set(selected, (multipliersByRecipe.get(selected) ?? 0) + portion.multiplier);
+        }
+        for (const [recipeName, totalMultiplier] of multipliersByRecipe.entries()) {
           const recipe = byName.get(recipeName);
           if (!recipe) continue;
           const scaledIngredients = buildRecipePortionIngredients({
@@ -214,9 +238,14 @@ export function OnboardingForm() {
       warnings: missingIngredientsForRecipes.size > 0 ? [`Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`] : []
     });
   };
-  const onReplaceRecipe = (dayName: string, mealType: GeneratedMeal["mealType"], recipeName: string) => {
+  const onReplaceRecipe = (dayName: string, mealType: GeneratedMeal["mealType"], slot: number | undefined, personId: string | undefined, recipeName: string) => {
     if (!generatedMenu) return;
-    const next = generatedMenu.map((day) => day.day !== dayName ? day : ({ ...day, meals: day.meals.map((meal) => meal.mealType === mealType ? { ...meal, recipes: [recipeName] } : meal) }));
+    const next = generatedMenu.map((day) => day.day !== dayName ? day : ({ ...day, meals: day.meals.map((meal) => {
+      if (meal.mealType !== mealType) return meal;
+      if ((meal.slot ?? 1) !== (slot ?? 1)) return meal;
+      if (!personId) return { ...meal, recipes: [recipeName], portions: meal.portions.map((p) => ({ ...p, assignedRecipeName: recipeName })) };
+      return { ...meal, portions: meal.portions.map((p) => p.personId === personId ? { ...p, assignedRecipeName: recipeName || undefined, multiplier: recipeName ? p.multiplier : 0 } : p) };
+    }) }));
     setGeneratedMenu(next);
     rebuildGrocery(next);
     setMenuConfirmed(false);
@@ -235,12 +264,12 @@ export function OnboardingForm() {
   if (!savedOnboarding) {
     return (
       <form onSubmit={onSubmit} className="space-y-4 rounded border bg-white p-4">
-        <h2 className="text-lg font-semibold">Step 1 — Household</h2>
+        <h2 className="text-lg font-semibold">Passo 1 — Nucleo familiare</h2>
         <label className="block text-sm">Email<input className="mt-1 w-full rounded border p-2" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-        <label className="block text-sm">Household name<input className="mt-1 w-full rounded border p-2" value={householdName} onChange={(e) => setHouseholdName(e.target.value)} required /></label>
+        <label className="block text-sm">Nome nucleo familiare<input className="mt-1 w-full rounded border p-2" value={householdName} onChange={(e) => setHouseholdName(e.target.value)} required /></label>
         {persons.map((person, index) => (
           <div key={index} className="space-y-2 rounded border p-3">
-            <div className="flex items-center justify-between"><h3 className="font-medium">Person {index + 1}</h3>{persons.length > 1 ? <button type="button" className="text-red-600" onClick={() => removePerson(index)}>Remove</button> : null}</div>
+            <div className="flex items-center justify-between"><h3 className="font-medium">Persona {index + 1}</h3>{persons.length > 1 ? <button type="button" className="text-red-600" onClick={() => removePerson(index)}>Modifica</button> : null}</div>
             <input className="w-full rounded border p-2" placeholder="Name" value={person.name} onChange={(e) => updatePerson(index, "name", e.target.value)} required />
             <div className="grid grid-cols-2 gap-2">
               <input className="rounded border p-2" placeholder="Age" type="number" value={person.age ?? ""} onChange={(e) => updatePerson(index, "age", parseNumericInput(e.target.value))} required />
@@ -256,10 +285,10 @@ export function OnboardingForm() {
             </label>
           </div>
         ))}
-        <button type="button" className="rounded border px-3 py-2" onClick={addPerson}>Add person</button>
+        <button type="button" className="rounded border px-3 py-2" onClick={addPerson}>Nuova persona</button>
         <div className="space-y-2 rounded border p-3">
-          <h3 className="font-medium">Use saved people</h3>
-          {savedPeopleOptions.length === 0 ? <p className="text-sm text-slate-500">No saved people found for this email.</p> : (
+          <h3 className="font-medium">Recupera persone salvate</h3>
+          {savedPeopleOptions.length === 0 ? <p className="text-sm text-slate-500">Nessuna persona salvata trovata per questa email.</p> : (
             <>
               {savedPeopleOptions.map((saved) => (
                 <label key={`saved-${saved.id}`} className="block text-sm">
@@ -273,7 +302,7 @@ export function OnboardingForm() {
                   const additions = selected.filter((saved) => !names.has(saved.name.trim().toLowerCase())).map((saved) => ({ name: saved.name, age: saved.age, sex: saved.sex, heightCm: saved.heightCm, weightKg: saved.weightKg, preferredBreakfastRecipeName: undefined }));
                   return [...current, ...additions];
                 });
-              }}>Add selected people</button>
+              }}>Aggiungi persone selezionate</button>
             </>
           )}
         </div>
