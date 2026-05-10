@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { IngredientCategory, MainFoodGroup } from "@prisma/client";
 import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
 import { GroceryListSection } from "@/components/grocery-list-section";
@@ -83,6 +83,7 @@ export function OnboardingForm() {
   const [savedPeopleOptions, setSavedPeopleOptions] = useState<SavedPerson[]>([]);
   const [selectedSavedPeopleIds, setSelectedSavedPeopleIds] = useState<string[]>([]);
   const [savedHouseholds, setSavedHouseholds] = useState<{ id: string; name: string; createdAt?: string; updatedAt?: string; persons: SavedPerson[] }[]>([]);
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState("");
 
   const [step, setStep] = useState(1);
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
@@ -120,8 +121,7 @@ export function OnboardingForm() {
 
 
   const loadHouseholds = async () => {
-    if (!email) return;
-    const response = await fetch(`/api/households?email=${encodeURIComponent(email)}`);
+    const response = await fetch("/api/households");
     if (!response.ok) return;
     const data = await response.json();
     setSavedHouseholds(data.households ?? []);
@@ -130,6 +130,7 @@ export function OnboardingForm() {
   const recoverHousehold = (householdId: string) => {
     const household = savedHouseholds.find((item) => item.id === householdId);
     if (!household) return;
+    setSelectedHouseholdId(household.id);
     setHouseholdName(household.name);
     setPersons(household.persons.map((saved) => ({ name: saved.name, age: saved.age, sex: saved.sex, heightCm: saved.heightCm, weightKg: saved.weightKg, preferredBreakfastRecipeName: undefined })));
     setSavedOnboarding({ household: { id: household.id, name: household.name }, persons: household.persons });
@@ -176,6 +177,10 @@ export function OnboardingForm() {
     }
   };
 
+
+  useEffect(() => {
+    void loadHouseholds();
+  }, []);
   const dinnerCerealsWarning = useMemo(() => balancePlan.some((slot) => slot.mealType === "dinner" && slot.mainFoodGroup === "cereals"), [balancePlan]);
 
   const generateMenu = async () => {
@@ -274,6 +279,18 @@ export function OnboardingForm() {
     return (
       <form onSubmit={onSubmit} className="space-y-4 rounded border bg-white p-4">
         <h2 className="text-lg font-semibold">Passo 1 — Nucleo familiare</h2>
+        <div className="space-y-2 rounded border p-3">
+          <h3 className="font-medium">Recupera nucleo familiare esistente</h3>
+          <div className="flex flex-col gap-2 md:flex-row">
+            <select className="w-full rounded border p-2 text-sm" value={selectedHouseholdId} onChange={(e) => setSelectedHouseholdId(e.target.value)}>
+              <option value="">Seleziona nucleo familiare</option>
+              {savedHouseholds.map((household) => <option key={`household-${household.id}`} value={household.id}>{household.name} · {household.persons.length} persone{household.updatedAt ? ` · Agg. ${new Date(household.updatedAt).toLocaleDateString("it-IT")}` : household.createdAt ? ` · Creato ${new Date(household.createdAt).toLocaleDateString("it-IT")}` : ""}</option>)}
+            </select>
+            <button type="button" className="rounded border px-3 py-2" onClick={loadHouseholds}>Aggiorna elenco</button>
+            <button type="button" className="rounded border px-3 py-2" onClick={() => recoverHousehold(selectedHouseholdId)} disabled={!selectedHouseholdId}>Carica nucleo</button>
+          </div>
+          {savedHouseholds.length === 0 ? <p className="text-sm text-slate-500">Nessun nucleo familiare salvato</p> : null}
+        </div>
         <label className="block text-sm">Email<input className="mt-1 w-full rounded border p-2" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
         <label className="block text-sm">Nome nucleo familiare<input className="mt-1 w-full rounded border p-2" value={householdName} onChange={(e) => setHouseholdName(e.target.value)} required /></label>
         {persons.map((person, index) => (
