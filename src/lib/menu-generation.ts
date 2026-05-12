@@ -60,6 +60,7 @@ export function generateWeeklyMenu(params: {
   sportDays?: Record<string, boolean>;
   weeklyBalanceSlots?: WeeklyBalanceSlot[];
   preferredBreakfastByPersonId?: Record<string, string>;
+  nutritionalTargets?: Record<string, { dailyCalories: number; proteinG: number; carbsG: number; fatG: number }>;
 }) {
   const planningDays = params.planningDays ?? 7;
   const excludedFoodIds = [...new Set([...params.persons.flatMap((p) => p.excludedFoodIds), ...(params.forbiddenFoodIds ?? [])])];
@@ -95,7 +96,7 @@ export function generateWeeklyMenu(params: {
       });
 
       const composedMeal: ComposedMealRecipe = composeMealRecipes({ main: selection.recipe, sideDishes, dayIndex, weekNumber: params.weekNumber });
-      const portions = buildPortions({ mealType, selectedRecipes: composedMeal.recipes, persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution });
+      const portions = buildPortions({ mealType, selectedRecipes: composedMeal.recipes, persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution, nutritionalTargets: params.nutritionalTargets });
       composed.push({ mealType, recipes: composedMeal.recipes.map((r) => r.name), portions, warning: selection.warning });
     }
 
@@ -109,7 +110,7 @@ export function generateWeeklyMenu(params: {
             return { person, recipe: preferred ?? fallbackBreakfast };
           });
         const uniqueRecipes = Array.from(new Set(breakfastByPerson.map((item) => item.recipe.name)));
-        const portions = breakfastByPerson.map(({ person, recipe }) => ({ ...buildPortions({ mealType: "breakfast", selectedRecipes: [recipe], persons: [person], dayIndex, isPresentAtMeal, isSportDay, mealDistribution })[0], assignedRecipeName: recipe.name }));
+        const portions = breakfastByPerson.map(({ person, recipe }) => ({ ...buildPortions({ mealType: "breakfast", selectedRecipes: [recipe], persons: [person], dayIndex, isPresentAtMeal, isSportDay, mealDistribution, nutritionalTargets: params.nutritionalTargets })[0], assignedRecipeName: recipe.name }));
         composed.unshift({ mealType: "breakfast", recipes: uniqueRecipes, portions });
       }
     }
@@ -120,19 +121,19 @@ export function generateWeeklyMenu(params: {
         mealType: "morning_snack",
         slot: 1,
         recipes: [recipe1.name],
-        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe1], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }).map((portion) => ({ ...portion, assignedRecipeName: recipe1.name }))
+        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe1], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution, nutritionalTargets: params.nutritionalTargets }).map((portion) => ({ ...portion, assignedRecipeName: recipe1.name }))
       } as { mealType: MealType; slot?: 1 | 2; recipes: string[]; portions: ReturnType<typeof buildPortions>; warning?: string });
       composed.push({
         mealType: "morning_snack",
         slot: 2,
         recipes: [recipe2.name],
-        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe2], persons: params.persons, dayIndex, isPresentAtMeal: (personId, _mealType, idx) => params.presence?.[`morning_snack_2:${dayKeys[idx]}:${personId}`] ?? isPresentAtMeal(personId, "morning_snack", idx), isSportDay, mealDistribution }).map((portion) => ({ ...portion, assignedRecipeName: recipe2.name }))
+        portions: buildPortions({ mealType: "morning_snack", selectedRecipes: [recipe2], persons: params.persons, dayIndex, isPresentAtMeal: (personId, _mealType, idx) => params.presence?.[`morning_snack_2:${dayKeys[idx]}:${personId}`] ?? isPresentAtMeal(personId, "morning_snack", idx), isSportDay, mealDistribution, nutritionalTargets: params.nutritionalTargets }).map((portion) => ({ ...portion, assignedRecipeName: recipe2.name }))
       } as { mealType: MealType; slot?: 1 | 2; recipes: string[]; portions: ReturnType<typeof buildPortions>; warning?: string });
     }
 
     if (params.persons.some((p) => p.defaultManagedMeals.includes("afternoon_snack")) && afternoonSnackRecipes.length > 0) {
       const recipe = afternoonSnackRecipes[dayIndex % afternoonSnackRecipes.length];
-      composed.push({ mealType: "afternoon_snack", recipes: [recipe.name], portions: buildPortions({ mealType: "afternoon_snack", selectedRecipes: [recipe], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution }) });
+      composed.push({ mealType: "afternoon_snack", recipes: [recipe.name], portions: buildPortions({ mealType: "afternoon_snack", selectedRecipes: [recipe], persons: params.persons, dayIndex, isPresentAtMeal, isSportDay, mealDistribution, nutritionalTargets: params.nutritionalTargets }) });
     }
 
     return { day, meals: composed };
