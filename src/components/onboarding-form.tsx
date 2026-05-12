@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { IngredientCategory, MainFoodGroup } from "@prisma/client";
-import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
+import { ActivityLevel, Goal, IngredientCategory, MainFoodGroup } from "@prisma/client";
+import { generateGroceryList } from "@/lib/grocery-list";
+import { estimateDailyCalories, estimateMacroTargets } from "@/lib/menu-generation/portionCalculator";
 import { GroceryListSection } from "@/components/grocery-list-section";
 import { WeeklyMenuTable, type GeneratedMeal } from "@/components/weekly-menu-table";
 
@@ -86,6 +87,7 @@ export function OnboardingForm() {
   const [selectedHouseholdId, setSelectedHouseholdId] = useState("");
 
   const [step, setStep] = useState(1);
+  const [nutritionalTargets, setNutritionalTargets] = useState<Record<string, { dailyCalories: number; proteinG: number; carbsG: number; fatG: number }>>({});
   const [selectedForbiddenFoods, setSelectedForbiddenFoods] = useState<string[]>([]);
   const [selectedPreferredFoods, setSelectedPreferredFoods] = useState<string[]>([]);
   const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({});
@@ -192,6 +194,7 @@ export function OnboardingForm() {
       body: JSON.stringify({
         householdId: savedOnboarding.household.id,
         preferredBreakfastByPersonId: Object.fromEntries(savedOnboarding.persons.map((person) => [person.id, (persons.find((input) => input.name === person.name)?.preferredBreakfastRecipeName ?? "")]).filter((entry) => entry[1])),
+        nutritionalTargets,
         breakfastSnackMode: "recipes",
         forbiddenFoodIds: selectedForbiddenFoods,
         preferredFoodIds: selectedPreferredFoods,
@@ -211,46 +214,8 @@ export function OnboardingForm() {
     setMenuConfirmed(false);
   };
   const rebuildGrocery = (nextMenu: { day: string; meals: GeneratedMeal[] }[]) => {
-    const map = new Map<string, { ingredientId: string; ingredientName: string; unit: string; quantity: number; category: string }>();
-    const missingIngredientsForRecipes = new Set<string>();
-    const byName = new Map(recipeOptions.map((r) => [r.name, r]));
-
-    for (const day of nextMenu) {
-      for (const meal of day.meals) {
-        const multipliersByRecipe = new Map<string, number>();
-        for (const portion of meal.portions) {
-          const selected = portion.assignedRecipeName ?? meal.recipes[0];
-          if (!selected) continue;
-          multipliersByRecipe.set(selected, (multipliersByRecipe.get(selected) ?? 0) + portion.multiplier);
-        }
-        for (const [recipeName, totalMultiplier] of multipliersByRecipe.entries()) {
-          const recipe = byName.get(recipeName);
-          if (!recipe) continue;
-          const scaledIngredients = buildRecipePortionIngredients({
-            recipeName,
-            ingredients: recipe.ingredients,
-            multiplier: totalMultiplier,
-            onMissingIngredients: (name) => {
-              missingIngredientsForRecipes.add(name);
-              console.warn(`Ingredient details unavailable for recipe: ${name}`);
-            }
-          });
-
-          for (const ing of scaledIngredients) {
-            const key = `${ing.ingredientId}:${ing.unit}`;
-            const existing = map.get(key);
-            if (existing) existing.quantity += ing.quantity;
-            else map.set(key, { ingredientId: ing.ingredientId, ingredientName: ing.ingredientName, unit: ing.unit, quantity: ing.quantity, category: "other" });
-          }
-        }
-      }
-    }
-
-    const items = Array.from(map.values()).map((i) => ({ ingredientId: i.ingredientId, ingredientName: i.ingredientName, unit: i.unit, displayQuantity: i.unit === "piece" ? `${Math.ceil(i.quantity)} pieces` : `${Math.round(i.quantity)} ${i.unit}` }));
-    setGroceryList({
-      groups: [{ category: "other", items }],
-      warnings: missingIngredientsForRecipes.size > 0 ? [`Missing RecipeIngredient seed data for recipes: ${Array.from(missingIngredientsForRecipes).sort().join(", ")}`] : []
-    });
+    const grocery = generateGroceryList({ weeklyMenu: nextMenu, recipes: recipeOptions as never, includeDebugTrace: false });
+    setGroceryList(grocery as never);
   };
   const onReplaceRecipe = (dayName: string, mealType: GeneratedMeal["mealType"], slot: number | undefined, personId: string | undefined, recipeName: string) => {
     if (!generatedMenu) return;
@@ -266,11 +231,11 @@ export function OnboardingForm() {
   };
 
   const navigateNext = async () => {
-    if (step === 6) {
+    if (step === 7) {
       await generateMenu();
       return;
     }
-    setStep((prev) => Math.min(prev + 1, 6));
+    setStep((prev) => Math.min(prev + 1, 7));
   };
 
   const navigateBack = () => setStep((prev) => Math.max(prev - 1, savedOnboarding ? 2 : 1));
@@ -354,8 +319,34 @@ export function OnboardingForm() {
       ) : null}
 
       {step === 3 ? (
+        <section className="space-y-3 rounded border bg-white p-4">
+          <h2 className="text-lg font-semibold">Passo 3 — Fabbisogni nutrizionali</h2>
+          <p className="text-sm text-slate-600">Questi valori sono stime indicative e non sostituiscono il parere di un professionista.</p>
+          <div className="space-y-3">
+            {savedOnboarding.persons.map((person) => {
+              const personLike = { ...person, activityLevel: "lightly_active" as ActivityLevel, goal: "maintenance" as Goal, excludedFoodIds: [], preferredFoodIds: [], defaultManagedMeals: ["breakfast","morning_snack","lunch","afternoon_snack","dinner"] };
+              const estimatedKcal = Math.round(estimateDailyCalories(personLike as never));
+              const estimatedMacros = estimateMacroTargets(personLike as never);
+              const current = nutritionalTargets[person.id] ?? { dailyCalories: estimatedKcal, proteinG: Math.round(estimatedMacros.proteinGrams), carbsG: Math.round(estimatedMacros.carbsGrams), fatG: Math.round(estimatedMacros.fatGrams) };
+              return <div key={`target-${person.id}`} className="rounded border p-3 text-sm">
+                <p className="font-medium">{person.name}</p>
+                <p>Calorie giornaliere stimate: {estimatedKcal} kcal</p>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  <label>kcal<input className="w-full rounded border p-1" type="number" value={current.dailyCalories} onChange={(e)=>setNutritionalTargets((prev)=>({...prev,[person.id]:{...current,dailyCalories:Number(e.target.value)}}))} /></label>
+                  <label>Proteine (g)<input className="w-full rounded border p-1" type="number" value={current.proteinG} onChange={(e)=>setNutritionalTargets((prev)=>({...prev,[person.id]:{...current,proteinG:Number(e.target.value)}}))} /></label>
+                  <label>Carboidrati (g)<input className="w-full rounded border p-1" type="number" value={current.carbsG} onChange={(e)=>setNutritionalTargets((prev)=>({...prev,[person.id]:{...current,carbsG:Number(e.target.value)}}))} /></label>
+                  <label>Grassi (g)<input className="w-full rounded border p-1" type="number" value={current.fatG} onChange={(e)=>setNutritionalTargets((prev)=>({...prev,[person.id]:{...current,fatG:Number(e.target.value)}}))} /></label>
+                </div>
+                <button type="button" className="mt-2 rounded border px-2 py-1 text-xs" onClick={()=>setNutritionalTargets((prev)=>({...prev,[person.id]:{ dailyCalories: estimatedKcal, proteinG: Math.round(estimatedMacros.proteinGrams), carbsG: Math.round(estimatedMacros.carbsGrams), fatG: Math.round(estimatedMacros.fatGrams) }}))}>Ripristina valori stimati</button>
+              </div>;
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {step === 7 ? (
         <section className="space-y-3 overflow-auto">
-          <h2 className="text-lg font-semibold">Step 3 — Meal presence</h2>
+          <h2 className="text-lg font-semibold">Passo 4 — Presenza ai pasti</h2>
           {savedOnboarding.persons.map((person) => (
             <div key={person.id} className="space-y-2">
               <h3 className="font-medium">{person.name}</h3>
@@ -377,7 +368,7 @@ export function OnboardingForm() {
 
       {step === 5 ? (
         <section className="space-y-3 overflow-auto">
-          <h2 className="text-lg font-semibold">Step 5 — Weekly balance plan</h2>
+          <h2 className="text-lg font-semibold">Passo 6 — Piano settimanale</h2>
           <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-left">Day</th><th className="border p-1">Lunch type</th><th className="border p-1">Dinner type</th></tr></thead>
             <tbody>{dayKeys.map((day, index) => {
               const lunchSlot = balancePlan.find((slot) => slot.dayKey === day && slot.mealType === "lunch");
@@ -396,13 +387,13 @@ export function OnboardingForm() {
             <li>Preferred foods: {selectedPreferredFoods.join(", ") || "none"}</li>
             <li>People configured: {savedOnboarding.persons.length}</li>
           </ul>
-          <p className="text-sm">Confirm to generate the weekly menu using all onboarding inputs.</p>
+          <p className="text-sm">Conferma per generare il menu settimanale.</p>
         </section>
       ) : null}
 
       <div className="flex gap-2">
-        <button type="button" className="rounded border px-3 py-2" onClick={navigateBack} disabled={step <= 2}>Back</button>
-        <button type="button" className="rounded bg-slate-900 px-4 py-2 text-white" onClick={navigateNext}>{step === 6 ? "Confirm & generate" : "Next"}</button>
+        <button type="button" className="rounded border px-3 py-2" onClick={navigateBack} disabled={step <= 2}>Indietro</button>
+        <button type="button" className="rounded bg-slate-900 px-4 py-2 text-white" onClick={navigateNext}>{step === 7 ? "Conferma e genera" : "Avanti"}</button>
       </div>
 
       {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}

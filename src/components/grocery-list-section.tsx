@@ -12,16 +12,16 @@ type GroceryListData = {
 
 function categoryLabel(category: string): string {
   const labels: Record<string, string> = {
-    vegetables: "Vegetables",
-    fruit: "Fruit",
-    meat: "Meat",
-    fish: "Fish",
-    dairy: "Dairy",
-    legumes: "Legumes",
-    pasta_rice_cereals: "Pasta, rice and cereals",
-    pantry: "Pantry",
-    condiments: "Condiments",
-    other: "Other"
+    vegetables: "Verdura",
+    fruit: "Frutta",
+    meat: "Carne",
+    fish: "Pesce",
+    dairy: "Latticini",
+    legumes: "Legumi",
+    pasta_rice_cereals: "Pasta, riso e cereali",
+    pantry: "Dispensa",
+    condiments: "Condimenti",
+    other: "Altro"
   };
 
   return labels[category] ?? category;
@@ -32,14 +32,14 @@ export function GroceryListSection({ groceryList, menuHasRecipes }: { groceryLis
   const isUnavailable = menuHasRecipes && (!groceryList || groceryList.warnings.length > 0 || !hasItems);
 
   if (isUnavailable) {
-    return <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-800">Grocery list unavailable because some recipes do not have ingredient data.</p>;
+    return <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-800">Lista della spesa unavailable because some recipes do not have ingredient data.</p>;
   }
 
   if (!groceryList) return null;
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Grocery list</h2>
+      <h2 className="text-lg font-semibold">Lista della spesa</h2>
       <div className="space-y-4">
         {groceryList.groups.map((group) => (
           <div key={group.category}>
