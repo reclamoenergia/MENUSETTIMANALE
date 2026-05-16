@@ -2,6 +2,7 @@ import { IngredientCategory, Prisma, Unit } from "@prisma/client";
 import { buildRecipePortionIngredients } from "@/lib/recipe-ingredient-portions";
 
 type RecipeWithIngredients = Prisma.RecipeGetPayload<{ include: { ingredients: { include: { ingredient: true } } } }>;
+type IngredientInfo = { ingredientId: string; ingredientName: string; category: GroceryCategory; unit: Unit };
 
 type GroceryCategory =
   | "vegetables"
@@ -71,12 +72,51 @@ function mapIngredientCategory(category: IngredientCategory): GroceryCategory {
   return categoryOrder.includes(category as GroceryCategory) ? (category as GroceryCategory) : "other";
 }
 
+function getIngredientInfo(
+  recipeIngredient: {
+    ingredientId: string;
+    unit: Unit;
+    ingredient?: { id?: string; name?: string; category?: IngredientCategory | GroceryCategory | null } | null;
+    ingredientName?: string;
+    category?: IngredientCategory | GroceryCategory;
+  },
+  ingredientMap: Map<string, { name: string; category: GroceryCategory }>
+): IngredientInfo {
+  const nestedIngredient = recipeIngredient.ingredient;
+  const mappedIngredient = ingredientMap.get(recipeIngredient.ingredientId);
+
+  if (!nestedIngredient && !mappedIngredient) {
+    console.warn(`Missing ingredient relation for ingredientId: ${recipeIngredient.ingredientId}`);
+  }
+
+  const category = nestedIngredient?.category
+    ? mapIngredientCategory(nestedIngredient.category as IngredientCategory)
+    : recipeIngredient.category
+      ? mapIngredientCategory(recipeIngredient.category as IngredientCategory)
+      : (mappedIngredient?.category ?? "other");
+
+  return {
+    ingredientId: recipeIngredient.ingredientId,
+    ingredientName:
+      nestedIngredient?.name ?? recipeIngredient.ingredientName ?? mappedIngredient?.name ?? recipeIngredient.ingredientId,
+    category,
+    unit: recipeIngredient.unit
+  };
+}
+
 export function generateGroceryList(params: {
   weeklyMenu: { day?: string; meals: { mealType: string; slot?: number; recipes: string[]; portions: { personName?: string; multiplier: number; assignedRecipeName?: string }[] }[] }[];
   recipes: RecipeWithIngredients[];
   includeDebugTrace?: boolean;
 }) {
   const recipesByName = new Map(params.recipes.map((recipe) => [recipe.name, recipe]));
+  const ingredientMap = new Map<string, { name: string; category: GroceryCategory }>();
+  for (const recipe of params.recipes) {
+    for (const recipeIngredient of recipe.ingredients) {
+      const ingredientInfo = getIngredientInfo(recipeIngredient, ingredientMap);
+      ingredientMap.set(ingredientInfo.ingredientId, { name: ingredientInfo.ingredientName, category: ingredientInfo.category });
+    }
+  }
   const aggregated = new Map<string, AggregatedIngredient>();
   const missingIngredientsForRecipes = new Set<string>();
   const debugTrace = new Map<string, GroceryDebugSource[]>();
@@ -92,13 +132,14 @@ export function generateGroceryList(params: {
 
         const scaledIngredients = buildRecipePortionIngredients({
           recipeName: recipe.name,
-          ingredients: recipe.ingredients.map((recipeIngredient) => ({
-            ingredientId: recipeIngredient.ingredientId,
-            ingredientName: recipeIngredient.ingredient.name,
-            quantityPerStandardPortion: recipeIngredient.quantityPerStandardPortion,
-            unit: recipeIngredient.unit,
-            category: recipeIngredient.ingredient.category
-          })),
+          ingredients: recipe.ingredients.map((recipeIngredient) => {
+            const ingredientInfo = getIngredientInfo(recipeIngredient, ingredientMap);
+            return {
+              ...ingredientInfo,
+              quantityPerStandardPortion: recipeIngredient.quantityPerStandardPortion,
+              category: ingredientInfo.category
+            };
+          }),
           multiplier: portion.multiplier,
           onMissingIngredients: (name) => missingIngredientsForRecipes.add(name)
         });
