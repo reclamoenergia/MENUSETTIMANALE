@@ -7,6 +7,7 @@ const prisma = new PrismaClient();
 function validateSeedData(): void {
   const ingredientIds = new Set(ingredients.map((i) => i.id));
 
+
   for (const recipe of recipes) {
     if (recipe.ingredients.length === 0) {
       throw new Error(`Recipe ${recipe.id} (${recipe.name}) has no ingredients.`);
@@ -48,6 +49,27 @@ async function main() {
 
   for (const ingredient of ingredients) {
     await prisma.ingredient.upsert({ where: { id: ingredient.id }, update: ingredient, create: ingredient });
+  }
+
+  const mainMealCategorySet = new Set(["first_course", "second_course", "side_dish", "single_dish"] as const);
+  const curatedMainMealIds = new Set(
+    recipes
+      .filter((recipe) => recipe.mealCategories.some((category) => mainMealCategorySet.has(category as never)))
+      .map((recipe) => recipe.id)
+  );
+
+  const recipesToDelete = await prisma.recipe.findMany({
+    where: {
+      mealCategories: { hasSome: ["first_course", "second_course", "side_dish", "single_dish"] },
+      id: { notIn: Array.from(curatedMainMealIds) }
+    },
+    select: { id: true }
+  });
+
+  if (recipesToDelete.length > 0) {
+    const recipeIdsToDelete = recipesToDelete.map((recipe) => recipe.id);
+    await prisma.recipeIngredient.deleteMany({ where: { recipeId: { in: recipeIdsToDelete } } });
+    await prisma.recipe.deleteMany({ where: { id: { in: recipeIdsToDelete } } });
   }
 
   for (const recipe of recipes) {
